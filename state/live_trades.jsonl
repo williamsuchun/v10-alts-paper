@@ -2,3 +2,6 @@
 {"event": "open_DRY", "sym": "FETUSDT", "side": 1, "entry_price": 0.2086, "size_usd": 6000.0, "ts": "2026-04-27T09:40:47.796717+00:00", "dry_run": true}
 {"event": "control", "action": "pause", "note": "stop opening NEW positions", "ts": "2026-04-27T10:33:42.365447+00:00"}
 {"event": "control", "action": "resume", "note": "", "ts": "2026-04-27T10:33:57.644874+00:00"}
+{"event": "close_SIM", "sym": "DOTUSDT", "side": 1, "exit_price": 1.218, "pnl_usd": -82.6, "reason": "hold_expiry", "held_h": 12.65, "ts": "2026-04-27T22:19:39.729650+00:00", "dry_run": true}
+{"event": "close_SIM", "sym": "FETUSDT", "side": 1, "exit_price": 0.205, "pnl_usd": -108.35, "reason": "hold_expiry", "held_h": 12.65, "ts": "2026-04-27T22:19:39.730555+00:00", "dry_run": true}
+{"event": "open_DRY", "sym": "TRUMPUSDT", "side": 1, "entry_price": 2.513, "size_usd": 1471.358513202938, "ts": "2026-04-27T22:19:39.731704+00:00", "dry_run": true}

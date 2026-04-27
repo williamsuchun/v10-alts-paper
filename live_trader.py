@@ -434,7 +434,6 @@ def cycle():
     paused, killed = is_paused()
     if killed:
         allow_new, reason = False, "💀 KILL_SWITCH (control.json)"
-        global KILL_SWITCH; KILL_SWITCH = True  # also block close logic
     elif paused:
         allow_new, reason = False, "⏸ paused (control.json)"
     print(f"  risk gates: {reason}")
