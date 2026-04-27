@@ -26,10 +26,10 @@ REPO = Path(__file__).parent
 STATE_FILE = REPO / "state" / "paper_state.json"
 COMP_LOG = REPO / "state" / "comparison_history.jsonl"
 
-# Backtest reference (v10 MAX_v10, 18m FULL period)
-# CAGR ≈ 282,456%/year is mathematically real but unrealistic at scale.
-# Use a conservative haircut: assume real-world deployable at ~1500% CAGR (typical strong crypto strategy).
-BT_CAGR_PCT = 1500    # %/year
+# Realistic CAGR reference (lev=3 stop=6% from optimize.py sweep)
+# Sweep showed mean +1.5%/week → (1.015)^52 ≈ +116%/yr
+# Backtest 282,456% is at lev=6 with extreme winner concentration; lev=3 ≈ half
+BT_CAGR_PCT = 120    # %/year (realistic for lev=3 config)
 INIT_CAPITAL = 10000
 
 

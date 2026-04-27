@@ -22,14 +22,24 @@ Hourly automated paper trading on GitHub Actions.
 ```python
 universe        = 52 syms (30 alts + 9 memes + 13 mid-tier)
 initial_capital = $10,000
-leverage        = 6x per coin
-funding_thr     = 0.03% per 8h (entry trigger)
+leverage        = 3x per coin    # was 6x; sweep showed Sharpe_w 0.04→0.14
+funding_thr     = 0.03% per 8h
 hold_hours      = 12
-stop_pct        = -10%
-lookback        = 14d (336h) for shadow P&L
+stop_pct        = -6%             # was -10%; tighter preserves capital under noise
+lookback        = 14d (336h)
 top_pct         = 20% (top 10 of 52)
 fee + slip      = 0.05% + 0.03% per side
 ```
+
+**Why lev=3 not lev=6**: `optimize.py` sweep over 8 rolling 7-day windows
+(56 days of recent real Binance data) showed:
+- lev=6 stop=10%: mean +0.9%/wk, **median -3.6%**, σ 20%, **worst week -20%**, Sharpe_w 0.04
+- lev=3 stop=6%:  mean **+1.5%/wk**, median +0.1%, σ 11%, worst week -10.7%, Sharpe_w **0.14**
+
+Lower leverage on alts/memes is counterintuitively MORE profitable AND safer because:
+1. -10% stops on 6x lev = -60% effective loss on capital allocated
+2. High volatility on memes triggers stops more often
+3. Tighter stop + lower lev = positions ride out noise without getting cut
 
 ## Setup
 
