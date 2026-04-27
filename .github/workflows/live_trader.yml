@@ -1,0 +1,65 @@
+name: v10 alts LIVE trader (gated)
+
+on:
+  schedule:
+    - cron: '5 * * * *'        # 错峰 paper 5 min
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'DRY_RUN mode (true = paper, false = real orders)'
+        required: true
+        default: 'true'
+        type: choice
+        options: ['true', 'false']
+
+permissions:
+  contents: write
+
+concurrency:
+  group: live-trader
+  cancel-in-progress: false
+
+env:
+  # 全局开关:false 才下真单 — 务必先在 paper 验证 7+ 天后再改
+  DRY_RUN: ${{ github.event.inputs.dry_run || 'true' }}
+  # 紧急停止: 设 true 立即停所有新开仓
+  KILL_SWITCH: 'false'
+
+jobs:
+  trade:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install deps
+        run: pip install -r requirements.txt
+
+      - name: Run live trader
+        env:
+          BINANCE_API_KEY: ${{ secrets.BINANCE_API_KEY }}
+          BINANCE_API_SECRET: ${{ secrets.BINANCE_API_SECRET }}
+          DRY_RUN: ${{ env.DRY_RUN }}
+          KILL_SWITCH: ${{ env.KILL_SWITCH }}
+        run: python live_trader.py
+
+      - name: Commit state + trade log
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add state/ 2>/dev/null || true
+          if ! git diff --cached --quiet; then
+            git commit -m "live: $(date -u +'%Y-%m-%d %H:%M UTC') dry_run=${DRY_RUN}"
+            for i in 1 2 3; do
+              git pull --rebase --autostash && git push && break
+              sleep 5
+            done
+          fi
