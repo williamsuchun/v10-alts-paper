@@ -82,14 +82,21 @@ GitHub repo → Actions → "v10 alts LIVE trader" → Run workflow → **dry_ru
 | `max_pos_notional_pct` | 10% | 单仓 notional ≤ 10% × leverage × equity |
 | `max_total_notional_pct` | 70% | 全部 notional ≤ 70% × leverage × equity |
 
+## 已实现的安全机制
+
+✅ **Entry-time tracking** — `state["live_positions"]` 维护本地 metadata, 12h hold expiry 在 live 也工作
+✅ **Server-side STOP_MARKET 单** — 开仓后立刻在 Binance 挂 -10% reduceOnly 止损单。
+   万一 cron 漏跑(GitHub Actions 偶尔延迟 15+ 分钟),交易所自动平仓
+✅ **Reconciliation** — 每 cycle 把 exchange truth 与本地对齐, 检测外部下单 / 手动平仓 / 强平
+   有事件 → Telegram WARN 推送
+
 ## 已知 limitations / TODO
 
-- ⚠️ **12h hold expiry 在 live mode 还没实现** — exchange 只返回当前持仓不带 entry_time。需要 cross-reference 本地 trade log 才能精确算 hold 时间。临时 workaround: 只靠 -10% stop,持仓时间不限
-- ⚠️ **没有 partial fill 处理** — 假设市价单全部成交
-- ⚠️ **没有 server-side stop loss** — 如果 GitHub Actions 一两小时没跑,本地 stop 会延后
-- ⚠️ **GitHub Actions 延迟** — schedule 通常延迟 0-15 分钟,不影响 1h 信号但影响 stop 反应速度
+- ⚠️ **没有 partial fill 处理** — 假设市价单全部成交。Binance USDM 流动性大币基本都全成交,但 meme/小币可能部分成交
+- ⚠️ **GitHub Actions 延迟** — schedule 通常延迟 0-15 分钟,影响 12h hold expiry 精度(可能 12.0-12.25h)
+- ⚠️ **没有 funding cost 时实时 cost basis 调整** — 长持位 funding 累计但本地 entry_price 不变(对 -10% stop 判断有微小偏差)
 
-要修这些 → 部署到 VPS (always-on),用 WebSocket 实时监控价格 + 服务端挂止损单。
+要更鲁棒 → VPS 部署 + WebSocket 实时监控。
 
 ## 监控
 

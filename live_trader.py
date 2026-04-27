@@ -224,8 +224,41 @@ def check_risk_gates(state, equity, positions):
 
 
 # ============== Order placement ==============
+def place_stop_loss(sym, side, contracts, entry_price):
+    """Place a server-side STOP_MARKET reduceOnly order at -stop_pct from entry.
+    Safety net: if cron skips an hour, exchange auto-closes."""
+    if DRY_RUN or not API_KEY: return None
+    try:
+        # long stop = entry * (1 - stop_pct); short stop = entry * (1 + stop_pct)
+        if side == 1:
+            stop_price = entry_price * (1 - CFG["stop_pct"])
+            ccxt_side = "sell"
+        else:
+            stop_price = entry_price * (1 + CFG["stop_pct"])
+            ccxt_side = "buy"
+        # Binance USDM: stopPrice triggers MARKET order
+        order = EXCHANGE.create_order(
+            to_ccxt(sym), "STOP_MARKET", ccxt_side, abs(contracts),
+            None, params={"stopPrice": stop_price, "reduceOnly": True, "workingType": "MARK_PRICE"},
+        )
+        return order.get("id")
+    except Exception as e:
+        log_event({"event": "stop_place_FAIL", "sym": sym, "err": str(e)})
+        notify.send(notify.alert(f"stop-loss order FAIL {sym}: {e}", "ERR"))
+        return None
+
+
+def cancel_stop(sym, stop_order_id):
+    if DRY_RUN or not API_KEY or not stop_order_id: return
+    try:
+        EXCHANGE.cancel_order(stop_order_id, to_ccxt(sym))
+    except Exception as e:
+        # often the stop already triggered; not an error worth alerting
+        print(f"  [stop cancel skip] {sym}: {e}")
+
+
 def place_market_order(sym, side, size_usd, price_hint, funding=0):
-    """Returns (success, info_dict)."""
+    """Returns (success, info_dict). info_dict includes stop_order_id if placed."""
     mode = "PAPER" if DRY_RUN else "LIVE"
     if DRY_RUN:
         log_event({"event": "open_DRY", "sym": sym, "side": side,
@@ -242,19 +275,23 @@ def place_market_order(sym, side, size_usd, price_hint, funding=0):
             params={"reduceOnly": False},
         )
         avg_p = float(order.get("average") or price_hint)
+        actual_contracts = float(order.get("filled") or contracts)
+        # Place server-side stop loss as safety net
+        stop_id = place_stop_loss(sym, side, actual_contracts, avg_p)
         log_event({"event": "open", "sym": sym, "side": side,
                    "entry_price": avg_p,
                    "size_usd": size_usd, "order_id": order.get("id"),
-                   "filled": float(order.get("filled") or 0)})
+                   "filled": actual_contracts, "stop_order_id": stop_id})
         notify.send(notify.open_msg(sym, side, avg_p, size_usd, funding, mode))
-        return True, order
+        return True, {**order, "stop_order_id": stop_id}
     except Exception as e:
         log_event({"event": "open_FAIL", "sym": sym, "side": side, "err": str(e)})
         notify.send(notify.alert(f"open FAIL {sym}: {e}", "ERR"))
         return False, {"err": str(e)}
 
 
-def close_position(sym, side, contracts, price_hint, reason, entry=0, size_usd=0, held_h=0):
+def close_position(sym, side, contracts, price_hint, reason, entry=0, size_usd=0, held_h=0,
+                    stop_order_id=None):
     mode = "PAPER" if DRY_RUN else "LIVE"
     if DRY_RUN:
         log_event({"event": "close_DRY", "sym": sym, "side": side,
@@ -263,6 +300,8 @@ def close_position(sym, side, contracts, price_hint, reason, entry=0, size_usd=0
         notify.send(notify.close_msg(sym, side, entry or price_hint, price_hint, pnl, held_h, reason, mode))
         return True
     try:
+        # Cancel server-side stop first (avoid race: our market order + stop both fire)
+        cancel_stop(sym, stop_order_id)
         ccxt_side = "sell" if side == 1 else "buy"
         order = EXCHANGE.create_market_order(
             to_ccxt(sym), ccxt_side, abs(contracts),
@@ -406,9 +445,10 @@ def cycle():
                 exit_reason = "hold_expiry"
 
             if exit_reason:
+                stop_id = local.get(sym, {}).get("stop_order_id")
                 close_position(sym, p["side"], p.get("contracts", 0), cur, exit_reason,
-                               entry=p["entry_price"], size_usd=p["size_usd"], held_h=held_h)
-                # remove from local cache
+                               entry=p["entry_price"], size_usd=p["size_usd"], held_h=held_h,
+                               stop_order_id=stop_id)
                 local.pop(sym, None)
 
     # 7. Open new positions if risk gates pass
@@ -441,7 +481,7 @@ def cycle():
                         "funding_at_entry": f,
                     })
                 else:
-                    # Live: record metadata for entry_time tracking
+                    # Live: record metadata for entry_time + stop tracking
                     actual_entry = float((info or {}).get("average") or cur) if not DRY_RUN else cur
                     state.setdefault("live_positions", {})[sym] = {
                         "entry_time": now_dt.isoformat(),
@@ -450,6 +490,7 @@ def cycle():
                         "size_usd": per_pos_alloc,
                         "funding_at_entry": f,
                         "order_id": (info or {}).get("id"),
+                        "stop_order_id": (info or {}).get("stop_order_id"),
                     }
                 slots -= 1
 
