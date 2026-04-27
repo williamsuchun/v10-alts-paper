@@ -292,19 +292,17 @@ def cycle():
         print("  ⚠️ not enough market data, skip"); save_state(state); return
 
     # 2. Truth-source: equity + positions from exchange (or simulated for DRY)
+    now_dt = datetime.now(timezone.utc)
     if DRY_RUN and not API_KEY:
         # Pure simulation when no key set: equity static
         equity = state.get("equity_sim", 10000.0)
         positions = state.get("positions_sim", [])
-        # Manage simulated positions same as paper trader
-        from datetime import timedelta as _td
         new_pos = []
-        now = datetime.now(timezone.utc)
         for p in positions:
             cur = prices.get(p["sym"], p["entry_price"])
             ret_e = (cur / p["entry_price"] - 1) * p["side"]
             entry_t = datetime.fromisoformat(p["entry_time"])
-            held_h = (now - entry_t).total_seconds() / 3600
+            held_h = (now_dt - entry_t).total_seconds() / 3600
             exit_reason = None
             if ret_e <= -CFG["stop_pct"]: exit_reason = "stop_loss"
             elif held_h >= CFG["hold_hours"]: exit_reason = "hold_expiry"
@@ -324,16 +322,57 @@ def cycle():
         state["positions_sim"] = positions
         state["equity_sim"] = equity
     else:
-        # Real exchange
-        equity, positions = fetch_account_state()
+        # Real exchange — RECONCILE local metadata with exchange truth
+        equity, exch_positions = fetch_account_state()
         if equity is None:
             print("  exchange unreachable, skip"); save_state(state); return
+
+        # local cache: state["live_positions"] = {sym: {entry_time, entry_price, size_usd, side, ...}}
+        local = state.setdefault("live_positions", {})
+        exch_syms = {p["sym"] for p in exch_positions}
+        local_syms = set(local.keys())
+
+        # Detect externally-closed positions (was in local, gone from exchange)
+        for sym in local_syms - exch_syms:
+            removed = local.pop(sym)
+            log_event({"event": "external_close", "sym": sym, "note": "was in local but not on exchange",
+                       "had_metadata": removed})
+            notify.send(notify.alert(f"{sym} closed externally (manual / liquidation?)", "WARN"))
+
+        # Merge: enrich exchange positions with local metadata, or create fresh
+        positions = []
+        for ep in exch_positions:
+            sym = ep["sym"]
+            if sym in local and local[sym].get("side") == ep["side"]:
+                # Use local metadata for entry_time, but exchange for current state
+                ep["entry_time"] = local[sym]["entry_time"]
+                # If sizes mismatch, log (could be partial fill or DCA)
+                if abs(local[sym].get("size_usd", 0) - ep["size_usd"]) / max(ep["size_usd"], 1) > 0.05:
+                    print(f"  ⚠️ size drift {sym}: local=${local[sym].get('size_usd', 0):.0f} exch=${ep['size_usd']:.0f}")
+                    local[sym]["size_usd"] = ep["size_usd"]
+            else:
+                # New position not opened by us, or side flipped — record now as entry
+                ep["entry_time"] = now_dt.isoformat()
+                local[sym] = {
+                    "entry_time": now_dt.isoformat(),
+                    "entry_price": ep["entry_price"], "side": ep["side"],
+                    "size_usd": ep["size_usd"],
+                }
+                if sym not in local_syms:
+                    log_event({"event": "external_open", "sym": sym,
+                               "note": "appeared on exchange without our open call",
+                               "details": ep})
+                    notify.send(notify.alert(f"{sym} {('LONG' if ep['side']==1 else 'SHORT')} appeared "
+                                              f"(manual order?)", "WARN"))
+            positions.append(ep)
 
     print(f"  equity=${equity:.2f}  active_positions={len(positions)}")
     for p in positions:
         sym = p["sym"]; cur = prices.get(sym, p["entry_price"])
         unr = (cur / p["entry_price"] - 1) * p["side"] * 100
-        print(f"    {sym:14s} {('LONG' if p['side']==1 else 'SHORT'):5s} entry=${p['entry_price']:.4f} now=${cur:.4f} ({unr:+.2f}%) size=${p['size_usd']:.0f}")
+        held_h = (now_dt - datetime.fromisoformat(p["entry_time"])).total_seconds() / 3600 if p.get("entry_time") else 0
+        print(f"    {sym:14s} {('LONG' if p['side']==1 else 'SHORT'):5s} entry=${p['entry_price']:.4f} "
+              f"now=${cur:.4f} ({unr:+.2f}%) size=${p['size_usd']:.0f} held={held_h:.1f}h")
 
     # 3. Update shadow simulation
     update_shadow(state, prices, fundings)
@@ -349,20 +388,28 @@ def cycle():
         notify.send(notify.alert(f"Risk gate blocked: {reason}", "WARN"))
         state["last_risk_alert"] = reason
 
-    # 6. Manage existing positions (live mode: stop/hold via own logic)
-    #    Note: in live mode we may set stop on exchange-side too (TODO)
-    now_dt = datetime.now(timezone.utc)
+    # 6. Manage existing positions (live mode): both stop_loss AND hold_expiry
     if not DRY_RUN or API_KEY:
+        local = state.get("live_positions", {})
         for p in positions:
             sym = p["sym"]
             cur = prices.get(sym, p["entry_price"])
             ret_e = (cur / p["entry_price"] - 1) * p["side"]
-            # Live positions don't have entry_time tracking from exchange; we approximate from updateTime
-            # For now: close if -10% draw; let server manage TPs separately
+            entry_t_iso = p.get("entry_time")
+            held_h = ((now_dt - datetime.fromisoformat(entry_t_iso)).total_seconds() / 3600
+                       if entry_t_iso else 0)
+
+            exit_reason = None
             if ret_e <= -CFG["stop_pct"]:
-                close_position(sym, p["side"], p["contracts"], cur, "stop_loss",
-                               entry=p["entry_price"], size_usd=p["size_usd"])
-            # We can't easily detect 12h hold expiry from exchange position alone — would need to track in state
+                exit_reason = "stop_loss"
+            elif held_h >= CFG["hold_hours"]:
+                exit_reason = "hold_expiry"
+
+            if exit_reason:
+                close_position(sym, p["side"], p.get("contracts", 0), cur, exit_reason,
+                               entry=p["entry_price"], size_usd=p["size_usd"], held_h=held_h)
+                # remove from local cache
+                local.pop(sym, None)
 
     # 7. Open new positions if risk gates pass
     if allow_new:
@@ -393,6 +440,17 @@ def cycle():
                         "size_usd": per_pos_alloc,
                         "funding_at_entry": f,
                     })
+                else:
+                    # Live: record metadata for entry_time tracking
+                    actual_entry = float((info or {}).get("average") or cur) if not DRY_RUN else cur
+                    state.setdefault("live_positions", {})[sym] = {
+                        "entry_time": now_dt.isoformat(),
+                        "entry_price": actual_entry,
+                        "side": side,
+                        "size_usd": per_pos_alloc,
+                        "funding_at_entry": f,
+                        "order_id": (info or {}).get("id"),
+                    }
                 slots -= 1
 
     # 8. Snapshot
