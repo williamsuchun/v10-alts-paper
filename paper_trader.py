@@ -318,31 +318,16 @@ def run_once(state, dry=False):
     except Exception as e:
         print(f"  [comparator err] {e}")
 
-    # Daily summary at UTC 00:xx (first cycle of day)
+    # Rich daily digest at UTC 00:xx (first cycle of day)
     now = datetime.now(timezone.utc)
     today = now.date().isoformat()
     if now.hour == 0 and state.get("last_daily_summary") != today:
         state["last_daily_summary"] = today
-        # Find equity 24h ago
-        hist = state.get("history", {}).get("equity_curve", [])
-        prev_total = next((h["total"] for h in reversed(hist[:-1])
-                           if (now - datetime.fromisoformat(h["ts"])).total_seconds() > 22*3600),
-                          state["initial_capital"])
-        change_pct = (total / prev_total - 1) * 100 if prev_total else 0
-        # Count closes in last 24h
-        n_closed_24h = 0
-        if TRADES_LOG.exists():
-            for ln in TRADES_LOG.read_text().strip().split("\n"):
-                try:
-                    e = json.loads(ln)
-                    if e.get("event") == "close":
-                        ts = datetime.fromisoformat(e["ts"])
-                        if (now - ts).total_seconds() < 24*3600:
-                            n_closed_24h += 1
-                except Exception: pass
-        scored = [(s, sum(i["rets"])) for s, i in state["shadow_pnl"].items() if i.get("rets")]
-        top5 = [s for s, _ in sorted(scored, key=lambda x: -x[1])[:5]]
-        notify.send(notify.daily_summary(total, change_pct, n_closed_24h, len(state["positions"]), top5, "PAPER"))
+        try:
+            import daily_digest
+            daily_digest.send_digest()
+        except Exception as e:
+            print(f"  [digest err] {e}")
     return state
 
 
