@@ -22,24 +22,30 @@ Hourly automated paper trading on GitHub Actions.
 ```python
 universe        = 52 syms (30 alts + 9 memes + 13 mid-tier)
 initial_capital = $10,000
-leverage        = 3x per coin    # was 6x; sweep showed Sharpe_w 0.04→0.14
+leverage        = 3x per coin     # was 6x
 funding_thr     = 0.03% per 8h
-hold_hours      = 12
-stop_pct        = -6%             # was -10%; tighter preserves capital under noise
+hold_hours      = 8                # was 12; signal decays fast
+stop_pct        = -6%              # was -10%; tighter preserves capital
 lookback        = 14d (336h)
-top_pct         = 20% (top 10 of 52)
+top_pct         = 40% (top 21 of 52)  # was 20; more diversification
 fee + slip      = 0.05% + 0.03% per side
 ```
 
-**Why lev=3 not lev=6**: `optimize.py` sweep over 8 rolling 7-day windows
-(56 days of recent real Binance data) showed:
-- lev=6 stop=10%: mean +0.9%/wk, **median -3.6%**, σ 20%, **worst week -20%**, Sharpe_w 0.04
-- lev=3 stop=6%:  mean **+1.5%/wk**, median +0.1%, σ 11%, worst week -10.7%, Sharpe_w **0.14**
+**Tuning rationale** (from `optimize.py` + `optimize_top_pct.py` sweeps over 8 rolling 7d windows of recent Binance data):
 
-Lower leverage on alts/memes is counterintuitively MORE profitable AND safer because:
-1. -10% stops on 6x lev = -60% effective loss on capital allocated
-2. High volatility on memes triggers stops more often
-3. Tighter stop + lower lev = positions ride out noise without getting cut
+| Config | Mean ROI/wk | σ | Worst | Sharpe_w |
+|---|---|---|---|---|
+| Original (lev=6 stop=10% top=20% hold=12h) | +0.9% | 20% | -20% | 0.04 |
+| Step 1: lev=3 stop=6% | +1.5% | 11% | -10.7% | 0.14 |
+| **Step 2: + top=40% hold=8h** | **+1.6%** | **7.5%** | **-7.7%** | **0.21** |
+
+**Realistic expectation: ~128%/year** (vs backtest's mathematically-real-but-unrealistic 282,456%/yr).
+Worst-week downside ~-8%, ~63% of weeks profitable.
+
+Insights:
+- **Lower lev** on alts/memes = MORE profitable AND safer (high vol triggers stops too easily on high lev)
+- **Shorter hold (8h)** beats 12h: funding-rev signal decays fast, longer hold = paying carry
+- **More diversification (40%)** beats concentration: 21 active positions ride out single-coin noise
 
 ## Setup
 

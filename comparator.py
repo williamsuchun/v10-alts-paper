@@ -26,10 +26,10 @@ REPO = Path(__file__).parent
 STATE_FILE = REPO / "state" / "paper_state.json"
 COMP_LOG = REPO / "state" / "comparison_history.jsonl"
 
-# Realistic CAGR reference (lev=3 stop=6% from optimize.py sweep)
-# Sweep showed mean +1.5%/week → (1.015)^52 ≈ +116%/yr
+# Realistic CAGR reference (lev=3 stop=6% top=40% hold=8h, optimal sweep)
+# Sweep showed mean +1.6%/week → (1.016)^52 ≈ +128%/yr (Sharpe_w 0.21)
 # Backtest 282,456% is at lev=6 with extreme winner concentration; lev=3 ≈ half
-BT_CAGR_PCT = 120    # %/year (realistic for lev=3 config)
+BT_CAGR_PCT = 130    # %/year (realistic for tuned config)
 INIT_CAPITAL = 10000
 
 

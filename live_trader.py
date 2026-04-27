@@ -42,10 +42,10 @@ UNIVERSE = [
 CFG = dict(
     leverage=3.0,              # was 6.0; sweep showed lev=3 has best Sharpe
     funding_thr=0.0003,
-    hold_hours=12,
+    hold_hours=8,              # was 12; signal decays fast, short hold beats long
     stop_pct=0.06,             # was 0.10; tighter stop preserves capital
     lookback_hours=336,
-    top_pct=20,
+    top_pct=40,                # was 20; more diversification → Sh_w 0.14→0.21
     fee=0.0005, slippage=0.0003,
 )
 

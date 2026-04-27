@@ -1,2 +1,4 @@
 {"event": "open", "sym": "DOTUSDT", "side": 1, "entry_price": 1.228, "size_usd": 6000.0, "funding": -0.00030244, "ts": "2026-04-27T08:51:26.570333+00:00"}
 {"event": "open", "sym": "FETUSDT", "side": 1, "entry_price": 0.2083, "size_usd": 6000.0, "funding": -0.00069867, "ts": "2026-04-27T08:51:26.571123+00:00"}
+{"event": "close", "sym": "DOTUSDT", "side": 1, "entry_price": 1.228, "exit_price": 1.221, "size_usd": 6000.0, "held_h": 11.24, "pnl_usd": -39.0, "reason": "hold_expiry", "ts": "2026-04-27T20:06:01.933966+00:00"}
+{"event": "close", "sym": "FETUSDT", "side": 1, "entry_price": 0.2083, "exit_price": 0.2051, "size_usd": 6000.0, "held_h": 11.24, "pnl_usd": -96.97, "reason": "hold_expiry", "ts": "2026-04-27T20:06:01.936461+00:00"}
