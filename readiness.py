@@ -79,6 +79,8 @@ def main():
                      help="Number of days back to analyze (default 7)")
     ap.add_argument("--sim", action="store_true",
                      help="Read from sim_state.json instead of paper_state.json")
+    ap.add_argument("--telegram", action="store_true",
+                     help="Also send concise summary via Telegram (notify.send)")
     args = ap.parse_args()
     global _USE_SIM
     _USE_SIM = args.sim
@@ -253,20 +255,56 @@ def main():
     # =============== Final verdict ===============
     print("\n" + "="*80)
     all_critical = ok_roi and ok_count and ok_pf and ok_hold and ok_sp and ok_friction
+    issues = []
+    if not ok_roi: issues.append("ROI in disaster zone (< -2%)")
+    if not ok_count: issues.append(f"Trade count too low ({n_trades})")
+    if not ok_pf and pnls: issues.append(f"PF < 1.0 ({pf:.2f})")
+    if not ok_wr and pnls: issues.append(f"WR out of range ({win_rate:.1f}%)")
+    if not ok_hold and holds: issues.append(f"Hold time anomaly (avg {avg_hold:.1f}h)")
+    if not ok_sp: issues.append(f"Shadow data missing ({n_with_data}/52 syms)")
+    if not ok_friction: issues.append(f"Friction too high (avg {avg_friction:.1f}%)")
+
     if all_critical:
         print("  ✅ READY FOR LIVE")
-        print("     Paper performance matches backtest expectations.")
-        print("     Recommended: switch live_trader.yml DRY_RUN to 'false', start with $5000.")
+        print("     Paper performance matches expectations.")
+        print("     Recommended: live_trader.yml DRY_RUN to 'false', start $5000.")
     else:
         print("  ❌ NOT READY")
-        print("     Investigate failed checks above before going live.")
-        print("     Common issues:")
-        if not ok_count: print("       - Too few trades: cron not running, or funding signals too rare")
-        if not ok_wr: print("       - Win rate off: possibly broken signal logic")
-        if not ok_pf: print("       - Profit factor < 1: losing money, check sizing/exec")
-        if not ok_hold: print("       - Hold time anomaly: 12h expiry not firing")
-        if not ok_sp: print("       - Shadow data missing: many syms not tracked, top-N broken")
+        print("     Issues:")
+        for i in issues: print(f"       - {i}")
     print("="*80)
+
+    # ============== Telegram summary ==============
+    if args.telegram:
+        try:
+            import notify
+            verdict = "✅ READY FOR LIVE" if all_critical else "❌ NOT READY"
+            roi_window = roi_window_pct
+            now = datetime.now(timezone.utc)
+            msg_lines = [
+                f"📋 <b>v10 Weekly Readiness</b>",
+                f"<i>{now.strftime('%Y-%m-%d %H:%M UTC')} · {args.days}d window</i>",
+                "",
+                f"🎯 <b>Verdict</b>: {verdict}",
+                "",
+                f"📊 7d performance:",
+                f"  ROI {roi_window:+.2f}%  (mean expectation +0.7%/wk)",
+                f"  Trades closed: {n_trades}",
+            ]
+            if pnls:
+                msg_lines.append(f"  Win rate: {win_rate:.1f}%  · PF: {pf:.2f}")
+            if rows:
+                msg_lines.append(f"  Friction: {avg_friction:+.1f}% (paper vs shadow)")
+            if not all_critical:
+                msg_lines += ["", "⚠️ <b>Issues</b>:"]
+                for i in issues: msg_lines.append(f"  - {i}")
+                msg_lines += ["", "⏭️ <i>Wait, monitor for issues. Re-run next week.</i>"]
+            else:
+                msg_lines += ["", "🚀 <b>Action</b>: switch live_trader.yml DRY_RUN to false."]
+            notify.send("\n".join(msg_lines))
+            print("\n  ✓ Telegram summary sent")
+        except Exception as e:
+            print(f"\n  [telegram err] {e}")
 
 
 if __name__ == "__main__":

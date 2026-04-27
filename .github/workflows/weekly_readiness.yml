@@ -1,0 +1,37 @@
+name: Weekly Readiness Report
+
+on:
+  schedule:
+    - cron: '0 0 * * 0'        # Sunday 00:00 UTC (北京周日 8 AM)
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install deps
+        run: pip install -r requirements.txt
+
+      - name: Run readiness + send Telegram
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: |
+          python readiness.py --days 7 --telegram
+          # Also run sim version for comparison
+          if [ -f state/sim_state.json ]; then
+            echo "=== SIM comparison ==="
+            python readiness.py --days 7 --sim
+          fi
