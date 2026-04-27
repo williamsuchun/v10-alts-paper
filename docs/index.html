@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>v10 alts paper</title>
+<link rel="stylesheet" href="style.css">
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+<div class="app">
+
+  <header>
+    <div class="title">
+      <h1>v10 alts paper</h1>
+      <span class="subtitle">funding-rev · adaptive top-N · 52 alts</span>
+    </div>
+    <div class="meta">
+      <span id="last-updated" class="muted">loading…</span>
+      <button id="refresh" class="ghost-btn" title="Refresh">↻</button>
+    </div>
+  </header>
+
+  <section class="hero">
+    <div class="hero-main">
+      <div class="label">Total Equity</div>
+      <div class="hero-value" id="total-eq">—</div>
+      <div class="hero-roi" id="total-roi">—</div>
+    </div>
+    <div class="hero-stats">
+      <div class="stat">
+        <div class="stat-label">24h</div>
+        <div class="stat-value" id="roi-24h">—</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">7d</div>
+        <div class="stat-value" id="roi-7d">—</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label">Positions</div>
+        <div class="stat-value" id="n-pos">—</div>
+      </div>
+    </div>
+  </section>
+
+  <main class="grid">
+    <section class="card span-2">
+      <h2>Equity Curve</h2>
+      <p class="card-sub">paper actual · shadow upper-bound · backtest expected</p>
+      <div class="chart-wrap"><canvas id="equity-chart"></canvas></div>
+    </section>
+
+    <section class="card">
+      <h2>Top 10</h2>
+      <p class="card-sub">14d rolling shadow P&L</p>
+      <div id="top-list" class="top-list"></div>
+    </section>
+
+    <section class="card">
+      <h2>Active Positions</h2>
+      <div id="positions-table"></div>
+    </section>
+
+    <section class="card span-2">
+      <h2>Recent Trades</h2>
+      <div id="trades-table"></div>
+    </section>
+
+    <section class="card">
+      <h2>Friction Trend</h2>
+      <p class="card-sub">paper vs shadow %</p>
+      <div class="chart-wrap small"><canvas id="friction-chart"></canvas></div>
+    </section>
+
+    <section class="card">
+      <h2>Stats (7d)</h2>
+      <div id="stats-grid" class="stats-grid"></div>
+    </section>
+  </main>
+
+  <footer>
+    <span class="muted">data: <a href="https://github.com/williamsuchun/v10-alts-paper" target="_blank" rel="noopener">github.com/williamsuchun/v10-alts-paper</a></span>
+    <span class="muted">auto-refresh every 5 min</span>
+  </footer>
+
+</div>
+<script src="app.js"></script>
+</body>
+</html>
