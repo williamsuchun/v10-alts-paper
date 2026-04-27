@@ -31,6 +31,9 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: Run paper trader
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python paper_trader.py
 
       - name: Show status

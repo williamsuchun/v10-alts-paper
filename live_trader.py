@@ -22,6 +22,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import ccxt
+import notify
 
 # === Strategy config (与 paper_trader 完全一致) ===
 UNIVERSE = [
@@ -223,36 +224,43 @@ def check_risk_gates(state, equity, positions):
 
 
 # ============== Order placement ==============
-def place_market_order(sym, side, size_usd, price_hint):
+def place_market_order(sym, side, size_usd, price_hint, funding=0):
     """Returns (success, info_dict)."""
+    mode = "PAPER" if DRY_RUN else "LIVE"
     if DRY_RUN:
         log_event({"event": "open_DRY", "sym": sym, "side": side,
                    "entry_price": price_hint, "size_usd": size_usd})
+        notify.send(notify.open_msg(sym, side, price_hint, size_usd, funding, mode))
         return True, {"dry_run": True}
     if not API_KEY:
         return False, {"err": "no api key"}
     try:
-        # Compute contract amount = size_usd / price
         contracts = size_usd / price_hint
         ccxt_side = "buy" if side == 1 else "sell"
         order = EXCHANGE.create_market_order(
             to_ccxt(sym), ccxt_side, contracts,
             params={"reduceOnly": False},
         )
+        avg_p = float(order.get("average") or price_hint)
         log_event({"event": "open", "sym": sym, "side": side,
-                   "entry_price": float(order.get("average") or price_hint),
+                   "entry_price": avg_p,
                    "size_usd": size_usd, "order_id": order.get("id"),
                    "filled": float(order.get("filled") or 0)})
+        notify.send(notify.open_msg(sym, side, avg_p, size_usd, funding, mode))
         return True, order
     except Exception as e:
         log_event({"event": "open_FAIL", "sym": sym, "side": side, "err": str(e)})
+        notify.send(notify.alert(f"open FAIL {sym}: {e}", "ERR"))
         return False, {"err": str(e)}
 
 
-def close_position(sym, side, contracts, price_hint, reason):
+def close_position(sym, side, contracts, price_hint, reason, entry=0, size_usd=0, held_h=0):
+    mode = "PAPER" if DRY_RUN else "LIVE"
     if DRY_RUN:
         log_event({"event": "close_DRY", "sym": sym, "side": side,
                    "exit_price": price_hint, "reason": reason})
+        pnl = (price_hint/entry - 1) * side * size_usd if entry else 0
+        notify.send(notify.close_msg(sym, side, entry or price_hint, price_hint, pnl, held_h, reason, mode))
         return True
     try:
         ccxt_side = "sell" if side == 1 else "buy"
@@ -260,12 +268,15 @@ def close_position(sym, side, contracts, price_hint, reason):
             to_ccxt(sym), ccxt_side, abs(contracts),
             params={"reduceOnly": True},
         )
+        exit_p = float(order.get("average") or price_hint)
+        pnl = (exit_p/entry - 1) * side * size_usd if entry else 0
         log_event({"event": "close", "sym": sym, "side": side,
-                   "exit_price": float(order.get("average") or price_hint),
-                   "reason": reason, "order_id": order.get("id")})
+                   "exit_price": exit_p, "reason": reason, "order_id": order.get("id")})
+        notify.send(notify.close_msg(sym, side, entry or price_hint, exit_p, pnl, held_h, reason, mode))
         return True
     except Exception as e:
         log_event({"event": "close_FAIL", "sym": sym, "err": str(e)})
+        notify.send(notify.alert(f"close FAIL {sym}: {e}", "ERR"))
         return False
 
 
@@ -300,10 +311,13 @@ def cycle():
             if exit_reason:
                 pnl = ret_e * p["size_usd"]
                 cost = p["size_usd"] * (CFG["fee"] + CFG["slippage"])
-                equity += pnl - cost
+                realized = pnl - cost
+                equity += realized
                 log_event({"event": "close_SIM", "sym": p["sym"], "side": p["side"],
-                           "exit_price": cur, "pnl_usd": round(pnl - cost, 2),
+                           "exit_price": cur, "pnl_usd": round(realized, 2),
                            "reason": exit_reason, "held_h": round(held_h, 2)})
+                notify.send(notify.close_msg(p["sym"], p["side"], p["entry_price"], cur,
+                                              realized, held_h, exit_reason, "PAPER"))
             else:
                 new_pos.append(p)
         positions = new_pos
@@ -331,6 +345,9 @@ def cycle():
     # 5. Risk gates
     allow_new, reason = check_risk_gates(state, equity, positions)
     print(f"  risk gates: {reason}")
+    if not allow_new and state.get("last_risk_alert") != reason:
+        notify.send(notify.alert(f"Risk gate blocked: {reason}", "WARN"))
+        state["last_risk_alert"] = reason
 
     # 6. Manage existing positions (live mode: stop/hold via own logic)
     #    Note: in live mode we may set stop on exchange-side too (TODO)
@@ -343,7 +360,8 @@ def cycle():
             # Live positions don't have entry_time tracking from exchange; we approximate from updateTime
             # For now: close if -10% draw; let server manage TPs separately
             if ret_e <= -CFG["stop_pct"]:
-                close_position(sym, p["side"], p["contracts"], cur, "stop_loss")
+                close_position(sym, p["side"], p["contracts"], cur, "stop_loss",
+                               entry=p["entry_price"], size_usd=p["size_usd"])
             # We can't easily detect 12h hold expiry from exchange position alone — would need to track in state
 
     # 7. Open new positions if risk gates pass
@@ -366,7 +384,7 @@ def cycle():
             cur = prices.get(sym)
             if cur is None: continue
 
-            ok, info = place_market_order(sym, side, per_pos_alloc, cur)
+            ok, info = place_market_order(sym, side, per_pos_alloc, cur, funding=f)
             if ok:
                 if DRY_RUN and not API_KEY:
                     state.setdefault("positions_sim", []).append({

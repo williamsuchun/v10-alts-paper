@@ -16,6 +16,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import ccxt
+import notify  # local module, gracefully no-ops if no Telegram creds
 
 # ============== Config ==============
 EXCHANGE = ccxt.binanceusdm({"enableRateLimit": True})
@@ -222,6 +223,7 @@ def manage_real_positions(state, prices, fundings):
                 "size_usd": size_usd, "held_h": round(held_h, 2),
                 "pnl_usd": round(realized, 2), "reason": exit_reason,
             })
+            notify.send(notify.close_msg(sym, side, entry, cur_close, realized, held_h, exit_reason, "PAPER"))
             closed.append(sym)
         else:
             new_positions.append(p)
@@ -258,6 +260,7 @@ def open_new_positions(state, prices, fundings, top_syms):
         })
         log_event({"event": "open", "sym": sym, "side": side, "entry_price": cur_close,
                    "size_usd": size_usd, "funding": f})
+        notify.send(notify.open_msg(sym, side, cur_close, size_usd, f, "PAPER"))
         opened.append(sym)
         available_slots -= 1
     state["equity"] = cap
@@ -295,6 +298,32 @@ def run_once(state, dry=False):
     })
     state["history"]["equity_curve"] = state["history"]["equity_curve"][-2000:]
     print(f"  equity=${state['equity']:.2f} floating=${floating:+.2f} total=${total:.2f} positions={len(state['positions'])}")
+
+    # Daily summary at UTC 00:xx (first cycle of day)
+    now = datetime.now(timezone.utc)
+    today = now.date().isoformat()
+    if now.hour == 0 and state.get("last_daily_summary") != today:
+        state["last_daily_summary"] = today
+        # Find equity 24h ago
+        hist = state.get("history", {}).get("equity_curve", [])
+        prev_total = next((h["total"] for h in reversed(hist[:-1])
+                           if (now - datetime.fromisoformat(h["ts"])).total_seconds() > 22*3600),
+                          state["initial_capital"])
+        change_pct = (total / prev_total - 1) * 100 if prev_total else 0
+        # Count closes in last 24h
+        n_closed_24h = 0
+        if TRADES_LOG.exists():
+            for ln in TRADES_LOG.read_text().strip().split("\n"):
+                try:
+                    e = json.loads(ln)
+                    if e.get("event") == "close":
+                        ts = datetime.fromisoformat(e["ts"])
+                        if (now - ts).total_seconds() < 24*3600:
+                            n_closed_24h += 1
+                except Exception: pass
+        scored = [(s, sum(i["rets"])) for s, i in state["shadow_pnl"].items() if i.get("rets")]
+        top5 = [s for s, _ in sorted(scored, key=lambda x: -x[1])[:5]]
+        notify.send(notify.daily_summary(total, change_pct, n_closed_24h, len(state["positions"]), top5, "PAPER"))
     return state
 
 
