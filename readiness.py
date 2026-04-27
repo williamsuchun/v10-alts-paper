@@ -211,9 +211,30 @@ def main():
     for s, sc in ranked[:10]:
         print(f"  {s:14s} 14d shadow P&L = {sc*100:+6.1f}%")
 
+    # =============== Comparison history (paper vs shadow vs backtest) ===============
+    print(f"\n📊 Comparison vs theoretical (from comparison_history.jsonl)")
+    try:
+        import comparator
+        rows = comparator.load_history(days=args.days)
+        if rows:
+            avg_friction = sum(r['friction_pct'] for r in rows) / len(rows)
+            avg_gap = sum(r['backtest_gap_pct'] for r in rows) / len(rows)
+            last = rows[-1]
+            ok_friction = avg_friction < 30  # paper should not lose more than 30% to friction
+            print(fmt_check("Avg friction (paper vs shadow)", ok_friction,
+                             f"{avg_friction:+.1f}%", "< 30% (acceptable)",
+                             f"{len(rows)} snapshots"))
+            print(f"  ℹ️  Latest: paper=${last['paper_total']:.0f}  shadow=${last['shadow_total']:.0f}  bt=${last['bt_expected']:.0f}")
+            print(f"  ℹ️  Latest backtest gap: {last['backtest_gap_pct']:+.2f}%  (paper vs ~1500% CAGR extrapolation)")
+        else:
+            print("  ⚠️  No comparison history yet (comparator added in latest version)")
+            ok_friction = True  # don't block
+    except ImportError:
+        ok_friction = True
+
     # =============== Final verdict ===============
     print("\n" + "="*80)
-    all_critical = ok_roi and ok_count and ok_pf and ok_hold and ok_sp
+    all_critical = ok_roi and ok_count and ok_pf and ok_hold and ok_sp and ok_friction
     if all_critical:
         print("  ✅ READY FOR LIVE")
         print("     Paper performance matches backtest expectations.")

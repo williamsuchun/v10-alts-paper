@@ -17,6 +17,7 @@ from pathlib import Path
 
 import ccxt
 import notify  # local module, gracefully no-ops if no Telegram creds
+import comparator  # continuous backtest comparison logger
 
 # ============== Config ==============
 EXCHANGE = ccxt.binanceusdm({"enableRateLimit": True})
@@ -298,6 +299,13 @@ def run_once(state, dry=False):
     })
     state["history"]["equity_curve"] = state["history"]["equity_curve"][-2000:]
     print(f"  equity=${state['equity']:.2f} floating=${floating:+.2f} total=${total:.2f} positions={len(state['positions'])}")
+
+    # Comparison snapshot: paper vs shadow vs backtest
+    try:
+        snap = comparator.append_snapshot(state)
+        print(f"  comparator: paper=${snap['paper_total']:.0f} shadow=${snap['shadow_total']:.0f} bt=${snap['bt_expected']:.0f}  friction={snap['friction_pct']:+.1f}%")
+    except Exception as e:
+        print(f"  [comparator err] {e}")
 
     # Daily summary at UTC 00:xx (first cycle of day)
     now = datetime.now(timezone.utc)
