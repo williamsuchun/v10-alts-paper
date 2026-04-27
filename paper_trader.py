@@ -56,6 +56,15 @@ CFG = dict(
 REPO = Path(__file__).parent
 STATE_FILE = REPO / "state" / "paper_state.json"
 TRADES_LOG = REPO / "state" / "paper_trades.jsonl"
+CONTROL_FILE = REPO / "state" / "control.json"
+
+
+def is_paused():
+    if not CONTROL_FILE.exists(): return False
+    try:
+        c = json.loads(CONTROL_FILE.read_text())
+        return c.get("paused") or c.get("killed")
+    except Exception: return False
 
 
 # ============== State ==============
@@ -284,9 +293,11 @@ def run_once(state, dry=False):
     top = get_top_n(state)
     print(f"  top-{len(top)}: {top[:5]}{'...' if len(top)>5 else ''}")
 
-    if not dry:
+    if not dry and not is_paused():
         opened = open_new_positions(state, prices, fundings, top)
         if opened: print(f"  opened: {opened}")
+    elif is_paused():
+        print(f"  ⏸  paused (control.json) — no new positions")
 
     state["last_prices"] = prices
     state["last_funding"] = {**state.get("last_funding", {}), **fundings}

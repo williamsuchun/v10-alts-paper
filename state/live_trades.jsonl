@@ -1,2 +1,4 @@
 {"event": "open_DRY", "sym": "DOTUSDT", "side": 1, "entry_price": 1.234, "size_usd": 6000.0, "ts": "2026-04-27T09:40:47.796353+00:00", "dry_run": true}
 {"event": "open_DRY", "sym": "FETUSDT", "side": 1, "entry_price": 0.2086, "size_usd": 6000.0, "ts": "2026-04-27T09:40:47.796717+00:00", "dry_run": true}
+{"event": "control", "action": "pause", "note": "stop opening NEW positions", "ts": "2026-04-27T10:33:42.365447+00:00"}
+{"event": "control", "action": "resume", "note": "", "ts": "2026-04-27T10:33:57.644874+00:00"}

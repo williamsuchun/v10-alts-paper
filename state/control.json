@@ -1,0 +1,17 @@
+{
+  "paused": false,
+  "killed": false,
+  "last_change": "2026-04-27T10:33:57.643837+00:00",
+  "history": [
+    {
+      "ts": "2026-04-27T10:33:42.364706+00:00",
+      "action": "pause",
+      "note": "stop opening NEW positions"
+    },
+    {
+      "ts": "2026-04-27T10:33:57.643837+00:00",
+      "action": "resume",
+      "note": ""
+    }
+  ]
+}

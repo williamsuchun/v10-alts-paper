@@ -75,6 +75,15 @@ EXCHANGE = ccxt.binanceusdm({
 REPO = Path(__file__).parent
 STATE_FILE = REPO / "state" / "live_state.json"
 TRADES_LOG = REPO / "state" / "live_trades.jsonl"
+CONTROL_FILE = REPO / "state" / "control.json"
+
+
+def is_paused():
+    if not CONTROL_FILE.exists(): return False, False
+    try:
+        c = json.loads(CONTROL_FILE.read_text())
+        return bool(c.get("paused")), bool(c.get("killed"))
+    except Exception: return False, False
 
 
 def to_ccxt(s): return f"{s[:-4]}/USDT:USDT" if s.endswith("USDT") else s
@@ -420,8 +429,14 @@ def cycle():
     top = get_top_n(state)
     print(f"  top-{len(top)}: {top[:5]}{'...' if len(top)>5 else ''}")
 
-    # 5. Risk gates
+    # 5. Risk gates + control flags
     allow_new, reason = check_risk_gates(state, equity, positions)
+    paused, killed = is_paused()
+    if killed:
+        allow_new, reason = False, "💀 KILL_SWITCH (control.json)"
+        global KILL_SWITCH; KILL_SWITCH = True  # also block close logic
+    elif paused:
+        allow_new, reason = False, "⏸ paused (control.json)"
     print(f"  risk gates: {reason}")
     if not allow_new and state.get("last_risk_alert") != reason:
         notify.send(notify.alert(f"Risk gate blocked: {reason}", "WARN"))
