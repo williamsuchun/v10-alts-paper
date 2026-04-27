@@ -1,0 +1,56 @@
+{"event": "open", "sym": "HIGHUSDT", "side": 1, "entry_price": 0.3145, "size_usd": 6000.0, "funding": -0.0014041, "ts": "2026-04-20T19:00:00+00:00"}
+{"event": "open", "sym": "FETUSDT", "side": 1, "entry_price": 0.2128, "size_usd": 6000.0, "funding": -0.00107579, "ts": "2026-04-20T19:00:00+00:00"}
+{"event": "close", "sym": "HIGHUSDT", "side": 1, "entry_price": 0.3145, "exit_price": 0.3121, "size_usd": 6000.0, "held_h": 12.0, "pnl_usd": -50.59, "reason": "hold_expiry", "ts": "2026-04-21T07:00:00+00:00"}
+{"event": "close", "sym": "FETUSDT", "side": 1, "entry_price": 0.2128, "exit_price": 0.2129, "size_usd": 6000.0, "held_h": 12.0, "pnl_usd": -1.98, "reason": "hold_expiry", "ts": "2026-04-21T07:00:00+00:00"}
+{"event": "open", "sym": "HIGHUSDT", "side": 1, "entry_price": 0.3121, "size_usd": 5962.699551262896, "funding": -0.00034903, "ts": "2026-04-21T07:00:00+00:00"}
+{"event": "open", "sym": "FETUSDT", "side": 1, "entry_price": 0.2129, "size_usd": 5962.699551262896, "funding": -0.00052573, "ts": "2026-04-21T07:00:00+00:00"}
+{"event": "close", "sym": "HIGHUSDT", "side": 1, "entry_price": 0.3121, "exit_price": 0.2927, "size_usd": 5962.699551262896, "held_h": 12.0, "pnl_usd": -375.41, "reason": "hold_expiry", "ts": "2026-04-21T19:00:00+00:00"}
+{"event": "close", "sym": "FETUSDT", "side": 1, "entry_price": 0.2129, "exit_price": 0.2047, "size_usd": 5962.699551262896, "held_h": 12.0, "pnl_usd": -234.43, "reason": "hold_expiry", "ts": "2026-04-21T19:00:00+00:00"}
+{"event": "open", "sym": "JTOUSDT", "side": 1, "entry_price": 0.3505, "size_usd": 5591.073230844653, "funding": -0.00043782, "ts": "2026-04-22T06:00:00+00:00"}
+{"event": "close", "sym": "JTOUSDT", "side": 1, "entry_price": 0.3505, "exit_price": 0.3448, "size_usd": 5591.073230844653, "held_h": 12.0, "pnl_usd": -95.4, "reason": "hold_expiry", "ts": "2026-04-22T18:00:00+00:00"}
+{"event": "open", "sym": "HIGHUSDT", "side": 1, "entry_price": 0.2504, "size_usd": 5531.150963311977, "funding": -0.00087972, "ts": "2026-04-23T00:00:00+00:00"}
+{"event": "open", "sym": "WIFUSDT", "side": 1, "entry_price": 0.1799, "size_usd": 5528.496010849587, "funding": -0.00056941, "ts": "2026-04-23T11:00:00+00:00"}
+{"event": "close", "sym": "HIGHUSDT", "side": 1, "entry_price": 0.2504, "exit_price": 0.2506, "size_usd": 5531.150963311977, "held_h": 12.0, "pnl_usd": -0.01, "reason": "hold_expiry", "ts": "2026-04-23T12:00:00+00:00"}
+{"event": "open", "sym": "HIGHUSDT", "side": 1, "entry_price": 0.2506, "size_usd": 5525.8380916262595, "funding": -0.00053819, "ts": "2026-04-23T12:00:00+00:00"}
+{"event": "close", "sym": "WIFUSDT", "side": 1, "entry_price": 0.1799, "exit_price": 0.179, "size_usd": 5528.496010849587, "held_h": 12.0, "pnl_usd": -32.08, "reason": "hold_expiry", "ts": "2026-04-23T23:00:00+00:00"}
+{"event": "close", "sym": "HIGHUSDT", "side": 1, "entry_price": 0.2506, "exit_price": 0.2354, "size_usd": 5525.8380916262595, "held_h": 12.0, "pnl_usd": -338.43, "reason": "hold_expiry", "ts": "2026-04-24T00:00:00+00:00"}
+{"event": "open", "sym": "1000LUNCUSDT", "side": 1, "entry_price": 0.05539, "size_usd": 5300.880792501328, "funding": -0.00047364, "ts": "2026-04-24T01:00:00+00:00"}
+{"event": "close", "sym": "1000LUNCUSDT", "side": 1, "entry_price": 0.05539, "exit_price": 0.05141, "size_usd": 5300.880792501328, "held_h": 12.0, "pnl_usd": -385.13, "reason": "hold_expiry", "ts": "2026-04-24T13:00:00+00:00"}
+{"event": "open", "sym": "APEUSDT", "side": 1, "entry_price": 0.1198, "size_usd": 5067.257855362746, "funding": -0.00066512, "ts": "2026-04-24T14:00:00+00:00"}
+{"event": "open", "sym": "HIGHUSDT", "side": 1, "entry_price": 0.203, "size_usd": 5064.825571592173, "funding": -0.00050931, "ts": "2026-04-25T00:00:00+00:00"}
+{"event": "close", "sym": "APEUSDT", "side": 1, "entry_price": 0.1198, "exit_price": 0.2128, "size_usd": 5067.257855362746, "held_h": 12.0, "pnl_usd": 3929.63, "reason": "hold_expiry", "ts": "2026-04-25T02:00:00+00:00"}
+{"event": "open", "sym": "APEUSDT", "side": 1, "entry_price": 0.2128, "size_usd": 7420.170755263773, "funding": -0.00687433, "ts": "2026-04-25T02:00:00+00:00"}
+{"event": "close", "sym": "APEUSDT", "side": 1, "entry_price": 0.2128, "exit_price": 0.1871, "size_usd": 7420.170755263773, "held_h": 4.0, "pnl_usd": -902.08, "reason": "stop_loss", "ts": "2026-04-25T06:00:00+00:00"}
+{"event": "open", "sym": "APEUSDT", "side": 1, "entry_price": 0.1871, "size_usd": 6875.363965369887, "funding": -0.00687433, "ts": "2026-04-25T06:00:00+00:00"}
+{"event": "open", "sym": "AXSUSDT", "side": 1, "entry_price": 1.661, "size_usd": 6872.063790666509, "funding": -0.00177611, "ts": "2026-04-25T09:00:00+00:00"}
+{"event": "close", "sym": "APEUSDT", "side": 1, "entry_price": 0.1871, "exit_price": 0.1651, "size_usd": 6875.363965369887, "held_h": 5.0, "pnl_usd": -813.93, "reason": "stop_loss", "ts": "2026-04-25T11:00:00+00:00"}
+{"event": "open", "sym": "APEUSDT", "side": 1, "entry_price": 0.1651, "size_usd": 6380.404606621631, "funding": -0.00191412, "ts": "2026-04-25T11:00:00+00:00"}
+{"event": "close", "sym": "HIGHUSDT", "side": 1, "entry_price": 0.203, "exit_price": 0.2108, "size_usd": 5064.825571592173, "held_h": 12.0, "pnl_usd": 190.56, "reason": "hold_expiry", "ts": "2026-04-25T12:00:00+00:00"}
+{"event": "open", "sym": "HIGHUSDT", "side": 1, "entry_price": 0.2108, "size_usd": 6491.676332959002, "funding": -0.00131891, "ts": "2026-04-25T12:00:00+00:00"}
+{"event": "close", "sym": "AXSUSDT", "side": 1, "entry_price": 1.661, "exit_price": 1.492, "size_usd": 6872.063790666509, "held_h": 7.0, "pnl_usd": -664.78, "reason": "stop_loss", "ts": "2026-04-25T16:00:00+00:00"}
+{"event": "open", "sym": "TRUMPUSDT", "side": 1, "entry_price": 2.543, "size_usd": 6089.6950549718185, "funding": -0.00088101, "ts": "2026-04-25T17:00:00+00:00"}
+{"event": "open", "sym": "AXSUSDT", "side": 1, "entry_price": 1.606, "size_usd": 6086.772001345433, "funding": -0.00115423, "ts": "2026-04-25T22:00:00+00:00"}
+{"event": "close", "sym": "APEUSDT", "side": 1, "entry_price": 0.1651, "exit_price": 0.155, "size_usd": 6380.404606621631, "held_h": 12.0, "pnl_usd": -395.43, "reason": "hold_expiry", "ts": "2026-04-25T23:00:00+00:00"}
+{"event": "open", "sym": "APEUSDT", "side": 1, "entry_price": 0.155, "size_usd": 5846.594831581924, "funding": -0.00125748, "ts": "2026-04-25T23:00:00+00:00"}
+{"event": "close", "sym": "HIGHUSDT", "side": 1, "entry_price": 0.2108, "exit_price": 0.2061, "size_usd": 6491.676332959002, "held_h": 12.0, "pnl_usd": -147.16, "reason": "hold_expiry", "ts": "2026-04-26T00:00:00+00:00"}
+{"event": "open", "sym": "HIGHUSDT", "side": 1, "entry_price": 0.2061, "size_usd": 5755.495285914551, "funding": -0.00042771, "ts": "2026-04-26T00:00:00+00:00"}
+{"event": "close", "sym": "AXSUSDT", "side": 1, "entry_price": 1.606, "exit_price": 1.434, "size_usd": 6086.772001345433, "held_h": 3.0, "pnl_usd": -656.75, "reason": "stop_loss", "ts": "2026-04-26T01:00:00+00:00"}
+{"event": "close", "sym": "TRUMPUSDT", "side": 1, "entry_price": 2.543, "exit_price": 2.63, "size_usd": 6089.6950549718185, "held_h": 12.0, "pnl_usd": 203.47, "reason": "hold_expiry", "ts": "2026-04-26T05:00:00+00:00"}
+{"event": "open", "sym": "TRUMPUSDT", "side": 1, "entry_price": 2.63, "size_usd": 5480.760672463326, "funding": -0.00119901, "ts": "2026-04-26T05:00:00+00:00"}
+{"event": "open", "sym": "INJUSDT", "side": 1, "entry_price": 3.675, "size_usd": 5478.129907340544, "funding": -0.00305831, "ts": "2026-04-26T09:00:00+00:00"}
+{"event": "close", "sym": "APEUSDT", "side": 1, "entry_price": 0.155, "exit_price": 0.1532, "size_usd": 5846.594831581924, "held_h": 12.0, "pnl_usd": -72.57, "reason": "hold_expiry", "ts": "2026-04-26T11:00:00+00:00"}
+{"event": "close", "sym": "HIGHUSDT", "side": 1, "entry_price": 0.2061, "exit_price": 0.2435, "size_usd": 5755.495285914551, "held_h": 12.0, "pnl_usd": 1039.82, "reason": "hold_expiry", "ts": "2026-04-26T12:00:00+00:00"}
+{"event": "open", "sym": "HIGHUSDT", "side": 1, "entry_price": 0.2435, "size_usd": 6055.84747294666, "funding": -0.00057919, "ts": "2026-04-26T12:00:00+00:00"}
+{"event": "open", "sym": "MASKUSDT", "side": 1, "entry_price": 0.6168, "size_usd": 6052.940666159646, "funding": -0.00376819, "ts": "2026-04-26T13:00:00+00:00"}
+{"event": "close", "sym": "TRUMPUSDT", "side": 1, "entry_price": 2.63, "exit_price": 2.653, "size_usd": 5480.760672463326, "held_h": 12.0, "pnl_usd": 43.55, "reason": "hold_expiry", "ts": "2026-04-26T17:00:00+00:00"}
+{"event": "open", "sym": "TRUMPUSDT", "side": 1, "entry_price": 2.653, "size_usd": 6076.162853501895, "funding": -0.00057472, "ts": "2026-04-26T17:00:00+00:00"}
+{"event": "close", "sym": "INJUSDT", "side": 1, "entry_price": 3.675, "exit_price": 3.774, "size_usd": 5478.129907340544, "held_h": 12.0, "pnl_usd": 143.19, "reason": "hold_expiry", "ts": "2026-04-26T21:00:00+00:00"}
+{"event": "open", "sym": "INJUSDT", "side": 1, "entry_price": 3.774, "size_usd": 6159.161260050441, "funding": -0.00044142, "ts": "2026-04-26T21:00:00+00:00"}
+{"event": "close", "sym": "HIGHUSDT", "side": 1, "entry_price": 0.2435, "exit_price": 0.2164, "size_usd": 6055.84747294666, "held_h": 12.0, "pnl_usd": -623.73, "reason": "stop_loss", "ts": "2026-04-27T00:00:00+00:00"}
+{"event": "close", "sym": "MASKUSDT", "side": 1, "entry_price": 0.6168, "exit_price": 0.5454, "size_usd": 6052.940666159646, "held_h": 11.0, "pnl_usd": -702.93, "reason": "stop_loss", "ts": "2026-04-27T00:00:00+00:00"}
+{"event": "open", "sym": "HIGHUSDT", "side": 1, "entry_price": 0.2164, "size_usd": 5360.2105706471175, "funding": -0.00909702, "ts": "2026-04-27T00:00:00+00:00"}
+{"event": "close", "sym": "TRUMPUSDT", "side": 1, "entry_price": 2.653, "exit_price": 2.557, "size_usd": 6076.162853501895, "held_h": 12.0, "pnl_usd": -224.73, "reason": "hold_expiry", "ts": "2026-04-27T05:00:00+00:00"}
+{"event": "close", "sym": "INJUSDT", "side": 1, "entry_price": 3.774, "exit_price": 3.647, "size_usd": 6159.161260050441, "held_h": 12.0, "pnl_usd": -212.19, "reason": "hold_expiry", "ts": "2026-04-27T09:00:00+00:00"}
+{"event": "close", "sym": "HIGHUSDT", "side": 1, "entry_price": 0.2164, "exit_price": 0.2144, "size_usd": 5360.2105706471175, "held_h": 12.0, "pnl_usd": -53.83, "reason": "hold_expiry", "ts": "2026-04-27T12:00:00+00:00"}
+{"event": "open", "sym": "HIGHUSDT", "side": 1, "entry_price": 0.2144, "size_usd": 5063.188431803721, "funding": -0.0007177, "ts": "2026-04-27T12:00:00+00:00"}
+{"event": "open", "sym": "TRUMPUSDT", "side": 1, "entry_price": 2.506, "size_usd": 5060.758101356454, "funding": -0.00049642, "ts": "2026-04-27T17:00:00+00:00"}

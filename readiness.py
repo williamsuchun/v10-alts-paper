@@ -32,6 +32,8 @@ from pathlib import Path
 REPO = Path(__file__).parent
 STATE = REPO / "state" / "paper_state.json"
 TRADES = REPO / "state" / "paper_trades.jsonl"
+SIM_STATE = REPO / "state" / "sim_state.json"
+SIM_TRADES = REPO / "state" / "sim_trades.jsonl"
 
 
 # Backtest reference (v10 MAX, 18m FULL)
@@ -44,10 +46,16 @@ BT = dict(
 )
 
 
+_USE_SIM = False
+def _trades_path(): return SIM_TRADES if _USE_SIM else TRADES
+def _state_path(): return SIM_STATE if _USE_SIM else STATE
+
+
 def load_trades():
-    if not TRADES.exists(): return []
+    p = _trades_path()
+    if not p.exists(): return []
     out = []
-    for ln in TRADES.read_text().strip().split("\n"):
+    for ln in p.read_text().strip().split("\n"):
         if not ln: continue
         try: out.append(json.loads(ln))
         except: pass
@@ -55,8 +63,9 @@ def load_trades():
 
 
 def load_state():
-    if not STATE.exists(): return {}
-    return json.loads(STATE.read_text())
+    p = _state_path()
+    if not p.exists(): return {}
+    return json.loads(p.read_text())
 
 
 def fmt_check(name, ok, value, threshold, note=""):
@@ -68,7 +77,13 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--days", type=int, default=7,
                      help="Number of days back to analyze (default 7)")
+    ap.add_argument("--sim", action="store_true",
+                     help="Read from sim_state.json instead of paper_state.json")
     args = ap.parse_args()
+    global _USE_SIM
+    _USE_SIM = args.sim
+    if _USE_SIM:
+        print("📊 Reading SIMULATED state (state/sim_*.{json,jsonl})\n")
 
     trades = load_trades()
     state = load_state()
@@ -212,9 +227,12 @@ def main():
         print(f"  {s:14s} 14d shadow P&L = {sc*100:+6.1f}%")
 
     # =============== Comparison history (paper vs shadow vs backtest) ===============
-    print(f"\n📊 Comparison vs theoretical (from comparison_history.jsonl)")
+    comp_log_name = "sim_comparison.jsonl" if _USE_SIM else "comparison_history.jsonl"
+    print(f"\n📊 Comparison vs theoretical (from {comp_log_name})")
     try:
         import comparator
+        if _USE_SIM:
+            comparator.COMP_LOG = REPO / "state" / "sim_comparison.jsonl"
         rows = comparator.load_history(days=args.days)
         if rows:
             avg_friction = sum(r['friction_pct'] for r in rows) / len(rows)
