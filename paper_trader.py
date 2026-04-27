@@ -318,10 +318,11 @@ def run_once(state, dry=False):
     except Exception as e:
         print(f"  [comparator err] {e}")
 
-    # Rich daily digest at UTC 00:xx (first cycle of day)
+    # Rich daily digest at UTC 00-03 (first cycle that catches new day)
+    # Wider window handles GitHub Actions delays
     now = datetime.now(timezone.utc)
     today = now.date().isoformat()
-    if now.hour == 0 and state.get("last_daily_summary") != today:
+    if now.hour <= 3 and state.get("last_daily_summary") != today:
         state["last_daily_summary"] = today
         try:
             import daily_digest
