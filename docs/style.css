@@ -1506,6 +1506,152 @@ body::before {
   color: var(--text-muted);
 }
 
+/* ========== Funding ticker (top scrolling bar) ========== */
+.funding-ticker {
+  display: flex;
+  align-items: center;
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border);
+  height: 32px;
+  margin-bottom: 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+}
+.ticker-label {
+  background: var(--bg-subtle);
+  color: var(--text-muted);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  padding: 0 14px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  border-right: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.ticker-track {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+.ticker-content {
+  display: inline-flex;
+  white-space: nowrap;
+  animation: tickerScroll 60s linear infinite;
+  align-items: center;
+  height: 100%;
+  padding-left: 100%;
+}
+.ticker-content:hover { animation-play-state: paused; }
+@keyframes tickerScroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.ticker-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-right: 28px;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  cursor: default;
+}
+.ticker-item .ticker-sym {
+  color: var(--text);
+  font-weight: 500;
+}
+.ticker-item .ticker-rate.gain { color: var(--gain); }
+.ticker-item .ticker-rate.loss { color: var(--loss); }
+.ticker-item .ticker-arrow { font-size: 10px; opacity: 0.6; }
+
+/* ========== Scroll spy ========== */
+.scroll-spy {
+  position: fixed;
+  top: 50%;
+  right: 16px;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  z-index: 60;
+}
+.spy-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--border-strong);
+  cursor: pointer;
+  transition: all 0.2s var(--ease);
+  position: relative;
+}
+.spy-dot::before {
+  content: attr(data-label);
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--text);
+  color: var(--bg-card);
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s var(--ease);
+}
+.spy-dot:hover { background: var(--accent); transform: scale(1.4); }
+.spy-dot:hover::before { opacity: 1; }
+.spy-dot.active { background: var(--accent); transform: scale(1.4); }
+@media (max-width: 900px) { .scroll-spy { display: none; } }
+
+/* ========== Card collapse/expand ========== */
+.card.collapsed { min-height: 0; }
+.card.collapsed > :not(.card-header) { display: none; }
+.card.collapsed .card-header { margin-bottom: 0; }
+.card-collapse-btn {
+  background: transparent;
+  border: 0;
+  color: var(--text-muted);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 6px;
+  opacity: 0;
+  transition: all 0.15s var(--ease);
+  margin-right: 4px;
+}
+.card:hover .card-collapse-btn { opacity: 0.5; }
+.card-collapse-btn:hover { opacity: 1 !important; background: var(--bg-hover); color: var(--text); }
+.card.collapsed .card-collapse-btn { opacity: 1; transform: rotate(-90deg); }
+
+/* ========== Number ticker (flipboard-like for hero) ========== */
+.ticker-digit {
+  display: inline-block;
+  height: 1em;
+  overflow: hidden;
+  vertical-align: bottom;
+  position: relative;
+}
+.ticker-digit-inner {
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.6s cubic-bezier(0.65, 0, 0.35, 1);
+  will-change: transform;
+}
+.ticker-digit-inner span {
+  display: block;
+  height: 1em;
+  text-align: center;
+  min-width: 0.55em;
+}
+
 /* ========== Compare overlay toggle ========== */
 .compare-toggle {
   background: var(--bg-subtle);

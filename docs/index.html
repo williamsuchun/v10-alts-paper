@@ -26,6 +26,17 @@
 <body>
 <div class="app">
 
+  <!-- Funding rate live ticker (top scrolling bar) -->
+  <div id="funding-ticker" class="funding-ticker" aria-hidden="true">
+    <div class="ticker-label">FUNDING</div>
+    <div class="ticker-track">
+      <div id="ticker-content" class="ticker-content"></div>
+    </div>
+  </div>
+
+  <!-- Section navigator (right side scroll spy) -->
+  <nav id="scroll-spy" class="scroll-spy" aria-label="Sections"></nav>
+
   <!-- Sticky compact header (appears on scroll past hero) -->
   <div id="sticky-header" class="sticky-header" aria-hidden="true">
     <div class="sticky-inner">
@@ -251,6 +262,16 @@
         </div>
       </div>
       <div class="chart-wrap small"><canvas id="weekly-hist"></canvas></div>
+    </section>
+
+    <section class="card">
+      <div class="card-header">
+        <div class="card-header-text">
+          <h2>Strategy Health</h2>
+          <p class="card-sub">5-axis health snapshot</p>
+        </div>
+      </div>
+      <div class="chart-wrap small"><canvas id="health-radar"></canvas></div>
     </section>
   </main>
 

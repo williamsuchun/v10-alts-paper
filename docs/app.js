@@ -1662,6 +1662,248 @@ if (savedAccent) {
   document.documentElement.style.setProperty("--accent-strong", shadeColor(savedAccent, -15));
 }
 
+// =================== FUNDING TICKER ===================
+function renderFundingTicker(state) {
+  const fund = state.last_funding || {};
+  const items = Object.entries(fund)
+    .filter(([s, v]) => v != null)
+    .map(([s, v]) => ({sym: s, rate: v}))
+    .sort((a, b) => Math.abs(b.rate) - Math.abs(a.rate))
+    .slice(0, 25);
+  if (!items.length) {
+    $("funding-ticker").style.display = "none";
+    return;
+  }
+  $("funding-ticker").style.display = "flex";
+  $("funding-ticker").setAttribute("aria-hidden", "false");
+  // Duplicate for seamless loop
+  const html = items.map(it => {
+    const pct = it.rate * 100;
+    const arrow = pct > 0 ? "↑" : "↓";
+    const cls = pct > 0 ? "loss" : "gain";  // positive funding = longs pay → bearish for the long crowd
+    return `<span class="ticker-item" data-sym="${it.sym}">
+      <span class="ticker-arrow ${cls}">${arrow}</span>
+      <span class="ticker-sym">${it.sym.replace("USDT", "")}</span>
+      <span class="ticker-rate ${cls}">${pct >= 0 ? "+" : ""}${pct.toFixed(4)}%</span>
+    </span>`;
+  }).join("");
+  $("ticker-content").innerHTML = html + html;
+}
+
+// =================== STRATEGY HEALTH RADAR ===================
+function renderHealthRadar(state, trades, comps) {
+  const ctx = $("health-radar").getContext("2d");
+  if (charts.radar) charts.radar.destroy();
+  if (!comps.length) return;
+
+  const cutoff7d = Date.now() - 7 * 86400 * 1000;
+  const closes7d = trades.filter(t => t.event === "close" && new Date(t.ts).getTime() >= cutoff7d);
+
+  // 5 axes (each 0-100):
+  // 1. Win Rate — clamped 0-100
+  // 2. Profit Factor — clamped 0-100 (PF=1 → 50, PF=2 → 100)
+  // 3. % Profitable Weeks — over comparison history
+  // 4. Friction Health — 100 - (friction% × 5), clamped
+  // 5. ROI Pace — (current 7d ROI / expected 0.7%) × 100, clamped 0-100
+
+  const wins = closes7d.filter(c => (c.pnl_usd || 0) > 0).length;
+  const wr = closes7d.length ? (wins / closes7d.length * 100) : 50;
+  const gp = closes7d.filter(c => (c.pnl_usd||0)>0).reduce((s,c)=>s+c.pnl_usd, 0);
+  const gl = Math.abs(closes7d.filter(c => (c.pnl_usd||0)<=0).reduce((s,c)=>s+c.pnl_usd, 0)) || 1e-9;
+  const pf = gp / gl;
+  const pfScore = Math.min(100, Math.max(0, pf * 50));
+
+  // Weekly profitable %
+  const weekly = [];
+  let weekStart = comps[0].paper_total;
+  let weekStartTs = new Date(comps[0].ts).getTime();
+  for (const c of comps) {
+    const ts = new Date(c.ts).getTime();
+    if (ts - weekStartTs >= 7 * 86400 * 1000) {
+      weekly.push((c.paper_total / weekStart - 1) * 100);
+      weekStart = c.paper_total;
+      weekStartTs = ts;
+    }
+  }
+  const profWeeks = weekly.length ? (weekly.filter(r => r > 0).length / weekly.length * 100) : 50;
+
+  const compsRecent = comps.filter(c => new Date(c.ts).getTime() >= cutoff7d);
+  const avgFriction = compsRecent.length ?
+    compsRecent.reduce((s, c) => s + (c.friction_pct || 0), 0) / compsRecent.length : 0;
+  const frictionScore = Math.max(0, Math.min(100, 100 - Math.abs(avgFriction) * 5));
+
+  // ROI pace
+  const init = state.initial_capital || 10000;
+  const cash = state.equity || init;
+  const positions = state.positions || [];
+  const lastPrices = state.last_prices || {};
+  let floating = 0;
+  for (const p of positions) {
+    const cur = lastPrices[p.sym] || p.entry_price;
+    floating += (cur / p.entry_price - 1) * p.side * p.size_usd;
+  }
+  const total = cash + floating;
+  const eq7dAgo = (() => {
+    const past = comps.find(c => new Date(c.ts).getTime() >= cutoff7d);
+    return past ? past.paper_total : init;
+  })();
+  const roi7d = (total / eq7dAgo - 1) * 100;
+  const roiScore = Math.max(0, Math.min(100, 50 + (roi7d / 0.7) * 25));  // 0% → 50, +0.7% → 75, +2.8% → 100
+
+  const t = chartTheme();
+  charts.radar = new Chart(ctx, {
+    type: "radar",
+    data: {
+      labels: ["Win Rate", "Profit Factor", "Profitable Weeks", "Friction Health", "ROI Pace"],
+      datasets: [{
+        label: "Health",
+        data: [wr, pfScore, profWeeks, frictionScore, roiScore],
+        backgroundColor: "rgba(201,100,66,0.18)",
+        borderColor: "#c96442",
+        borderWidth: 2,
+        pointBackgroundColor: "#c96442",
+        pointRadius: 3,
+        pointHoverRadius: 5,
+      }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: {display: false},
+        tooltip: {backgroundColor: t.bg, titleColor: t.text, bodyColor: t.text, borderColor: t.grid, borderWidth: 1, padding: 8, cornerRadius: 6,
+          callbacks: {label: (c) => `${c.label}: ${c.raw.toFixed(0)}/100`}},
+      },
+      scales: {
+        r: {
+          min: 0, max: 100,
+          beginAtZero: true,
+          ticks: {display: false, stepSize: 25},
+          grid: {color: t.grid},
+          angleLines: {color: t.grid},
+          pointLabels: {color: t.muted, font: {size: 10, weight: "500"}},
+        },
+      },
+    },
+  });
+}
+
+// =================== SCROLL SPY ===================
+function buildScrollSpy() {
+  const cards = document.querySelectorAll(".card, .hero, .insights-row");
+  const spy = $("scroll-spy");
+  spy.innerHTML = "";
+  cards.forEach((card, i) => {
+    let label = "Section";
+    if (card.classList.contains("hero")) label = "Hero";
+    else if (card.classList.contains("insights-row")) label = "Insights";
+    else {
+      const h = card.querySelector("h2");
+      if (h) label = h.textContent;
+    }
+    const dot = document.createElement("div");
+    dot.className = "spy-dot";
+    dot.dataset.label = label;
+    dot.dataset.idx = i;
+    dot.addEventListener("click", () => {
+      card.scrollIntoView({behavior: "smooth", block: "center"});
+    });
+    spy.appendChild(dot);
+  });
+  // Update active on scroll
+  const update = () => {
+    const dots = spy.querySelectorAll(".spy-dot");
+    cards.forEach((card, i) => {
+      const r = card.getBoundingClientRect();
+      const inView = r.top < window.innerHeight / 2 && r.bottom > window.innerHeight / 2;
+      dots[i].classList.toggle("active", inView);
+    });
+  };
+  window.addEventListener("scroll", update, {passive: true});
+  setTimeout(update, 100);
+}
+
+// =================== CARD COLLAPSE ===================
+function attachCardCollapse() {
+  document.querySelectorAll(".card").forEach(card => {
+    if (card._collapseAttached) return;
+    card._collapseAttached = true;
+    const header = card.querySelector(".card-header");
+    if (header && !header.querySelector(".card-collapse-btn")) {
+      const btn = document.createElement("button");
+      btn.className = "card-collapse-btn";
+      btn.innerHTML = "▾";
+      btn.title = "Collapse / expand";
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        card.classList.toggle("collapsed");
+        const id = card.querySelector("h2")?.textContent || "";
+        const collapsed = JSON.parse(localStorage.getItem("collapsed-cards") || "[]");
+        if (card.classList.contains("collapsed")) {
+          if (!collapsed.includes(id)) collapsed.push(id);
+        } else {
+          const idx = collapsed.indexOf(id);
+          if (idx >= 0) collapsed.splice(idx, 1);
+        }
+        localStorage.setItem("collapsed-cards", JSON.stringify(collapsed));
+      };
+      // Insert as last child of header (after focus button)
+      header.appendChild(btn);
+    }
+  });
+  // Restore collapsed state
+  const collapsed = JSON.parse(localStorage.getItem("collapsed-cards") || "[]");
+  document.querySelectorAll(".card").forEach(card => {
+    const id = card.querySelector("h2")?.textContent || "";
+    if (collapsed.includes(id)) card.classList.add("collapsed");
+  });
+}
+
+// =================== NUMBER TICKER (Flipboard-style for hero) ===================
+function tickerizeNumber(el, formatted) {
+  // formatted is like "$10,234.56"
+  // Build per-character spans, animating digits
+  const chars = formatted.split("");
+  let html = "";
+  for (const c of chars) {
+    if (/\d/.test(c)) {
+      html += `<span class="ticker-digit"><span class="ticker-digit-inner" data-target="${c}"><span>0</span><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span><span>8</span><span>9</span></span></span>`;
+    } else {
+      html += `<span>${c}</span>`;
+    }
+  }
+  el.innerHTML = html;
+  // Animate to target
+  requestAnimationFrame(() => {
+    el.querySelectorAll(".ticker-digit-inner").forEach(inner => {
+      const d = parseInt(inner.dataset.target);
+      inner.style.transform = `translateY(-${d}em)`;
+    });
+  });
+}
+
+// Apply ticker on data refresh AFTER first load
+let _heroTickerEnabled = false;
+const _origRenderHero2 = renderHero;
+renderHero = function(state, comps) {
+  _origRenderHero2(state, comps);
+  if (_heroTickerEnabled) {
+    const init = state.initial_capital || 10000;
+    const cash = state.equity || init;
+    const positions = state.positions || [];
+    const lastPrices = state.last_prices || {};
+    let floating = 0;
+    for (const p of positions) {
+      const cur = lastPrices[p.sym] || p.entry_price;
+      floating += (cur / p.entry_price - 1) * p.side * p.size_usd;
+    }
+    const total = cash + floating;
+    const formatted = "$" + total.toLocaleString("en-US", {maximumFractionDigits: 2, minimumFractionDigits: 2});
+    setTimeout(() => tickerizeNumber($("total-eq"), formatted), 50);
+  }
+  // Enable for next refresh
+  setTimeout(() => { _heroTickerEnabled = true; }, 1500);
+};
+
 // =================== AUGMENT loadAll for new sections ===================
 const _origLoad4 = loadAll;
 loadAll = async function(silent) {
@@ -1688,9 +1930,17 @@ loadAll = async function(silent) {
     renderFrictionChart(comps);
     renderTreemap(state);
     renderWeeklyHist(comps);
+    renderHealthRadar(state, trades, comps);
+    renderFundingTicker(state);
     const lastTs = state.last_check || (comps.length ? comps[comps.length-1].ts : null);
     $("last-updated").innerHTML = `<span id="status-dot" class="status-dot healthy"></span>Updated ${fmt.ago(lastTs)}`;
-    setTimeout(() => { attachSymClicks(); attachHoverPreviews(); attachCardFocus(); }, 50);
+    setTimeout(() => {
+      attachSymClicks();
+      attachHoverPreviews();
+      attachCardFocus();
+      attachCardCollapse();
+      buildScrollSpy();
+    }, 50);
     if (!silent) toast("Refreshed");
   } catch (e) {
     console.error(e);
