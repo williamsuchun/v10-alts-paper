@@ -32,7 +32,13 @@
       <span id="last-updated" class="muted">
         <span id="status-dot" class="status-dot healthy"></span>loading…
       </span>
-      <button id="refresh" class="ghost-btn" title="Refresh now (auto every 5min)">
+      <button id="cmdk-trigger" class="ghost-btn kbd-hint" title="Command menu (⌘K)">
+        <span>⌘K</span>
+      </button>
+      <button id="theme-toggle" class="ghost-btn icon-btn" title="Toggle theme (T)" aria-label="Toggle theme">
+        <span class="icon" id="theme-icon">◐</span>
+      </button>
+      <button id="refresh" class="ghost-btn icon-btn" title="Refresh (R)">
         <span class="icon">↻</span>
       </button>
     </div>
@@ -41,7 +47,10 @@
   <section class="hero">
     <div class="hero-main">
       <div class="label">Total Equity</div>
-      <div class="hero-value" id="total-eq"><span class="skeleton skeleton-large"></span></div>
+      <div class="hero-row">
+        <div class="hero-value" id="total-eq"><span class="skeleton skeleton-large"></span></div>
+        <canvas id="hero-sparkline" class="hero-sparkline"></canvas>
+      </div>
       <div class="hero-roi" id="total-roi"><span class="skeleton skeleton-text"></span></div>
     </div>
     <div class="hero-stats">
@@ -177,6 +186,38 @@
   </footer>
 
   <div id="toast" class="toast"></div>
+
+  <!-- Sym detail modal -->
+  <div id="modal-backdrop" class="modal-backdrop" aria-hidden="true">
+    <div id="modal" class="modal" role="dialog" aria-modal="true">
+      <div class="modal-header">
+        <div>
+          <h3 id="modal-title">—</h3>
+          <p class="muted" id="modal-sub">—</p>
+        </div>
+        <button class="ghost-btn icon-btn" id="modal-close" title="Close (Esc)">×</button>
+      </div>
+      <div id="modal-content"></div>
+    </div>
+  </div>
+
+  <!-- Command palette -->
+  <div id="cmdk-backdrop" class="cmdk-backdrop" aria-hidden="true">
+    <div id="cmdk" class="cmdk" role="dialog" aria-modal="true">
+      <input id="cmdk-input" type="text" placeholder="Type a command or search..." autocomplete="off" spellcheck="false">
+      <div id="cmdk-results" class="cmdk-results"></div>
+      <div class="cmdk-footer">
+        <span class="kbd">↑↓</span> navigate
+        <span class="kbd">↵</span> select
+        <span class="kbd">esc</span> close
+      </div>
+    </div>
+  </div>
+
+  <!-- Keyboard shortcut hint (first visit) -->
+  <div id="kbd-hint-banner" class="kbd-hint-banner" aria-hidden="true">
+    Press <span class="kbd">⌘K</span> for commands · <span class="kbd">R</span> refresh · <span class="kbd">T</span> theme · <span class="kbd">1-4</span> period
+  </div>
 
 </div>
 <script src="app.js"></script>

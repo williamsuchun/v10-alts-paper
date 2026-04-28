@@ -483,3 +483,363 @@ setInterval(() => {
     $("last-updated").innerHTML = `${dot}Updated ${fmt.ago(lastTs)}`;
   }
 }, 60 * 1000);
+
+// =================== HERO SPARKLINE ===================
+function renderHeroSparkline(comps) {
+  const canvas = $("hero-sparkline");
+  if (!canvas) return;
+  const recent = comps.slice(-Math.min(comps.length, 168));  // last 7d
+  if (!recent.length) return;
+  const ctx = canvas.getContext("2d");
+  if (charts.heroSpark) charts.heroSpark.destroy();
+  // determine trend color
+  const first = recent[0].paper_total;
+  const last = recent[recent.length-1].paper_total;
+  const positive = last >= first;
+  const color = positive ? "#5b8c6e" : "#b85450";
+  charts.heroSpark = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels: recent.map((_, i) => i),
+      datasets: [{
+        data: recent.map(c => c.paper_total),
+        borderColor: color,
+        backgroundColor: positive ? "rgba(91,140,110,0.10)" : "rgba(184,84,80,0.10)",
+        fill: true, tension: 0.4, pointRadius: 0, borderWidth: 1.5,
+      }],
+    },
+    options: {
+      responsive: false, maintainAspectRatio: false,
+      plugins: {legend: {display: false}, tooltip: {enabled: false}},
+      scales: {x: {display: false}, y: {display: false}},
+      animation: {duration: 600, easing: "easeOutQuart"},
+    },
+  });
+}
+
+// Hook into existing render flow — augment loadAll
+const _origRenderHero = renderHero;
+function renderHeroWithSpark(state, comps) {
+  _origRenderHero(state, comps);
+  renderHeroSparkline(comps);
+}
+renderHero = renderHeroWithSpark;
+
+// =================== MODAL (sym detail) ===================
+function showSymModal(sym, state, trades) {
+  const attr = (state.pnl_attribution || {})[sym];
+  const sp = (state.shadow_pnl || {})[sym];
+  const positions = (state.positions || []).filter(p => p.sym === sym);
+  const symTrades = trades.filter(t => t.sym === sym).slice(-10).reverse();
+
+  $("modal-title").textContent = sym;
+  $("modal-sub").textContent = positions.length ? `Currently ${positions[0].side === 1 ? "LONG" : "SHORT"}` : "No active position";
+
+  let html = '<div class="modal-stat-grid">';
+  if (attr) {
+    html += `<div><span>Total P&L</span><span class="${cls(attr.total_pnl)}">${fmt.usd(attr.total_pnl)}</span></div>`;
+    html += `<div><span>Trades</span><span>${attr.n_trades}</span></div>`;
+    html += `<div><span>Wins / Losses</span><span>${attr.wins}W / ${attr.losses}L</span></div>`;
+    html += `<div><span>Win rate</span><span>${attr.n_trades ? (attr.wins/attr.n_trades*100).toFixed(0)+"%" : "—"}</span></div>`;
+  }
+  if (sp && sp.rets && sp.rets.length) {
+    const trail = sp.rets.reduce((a,b)=>a+b, 0);
+    html += `<div><span>14d shadow P&L</span><span class="${cls(trail)}">${fmt.pct(trail*100)}</span></div>`;
+    html += `<div><span>Shadow position</span><span>${sp.pos === 1 ? "📈 LONG" : sp.pos === -1 ? "📉 SHORT" : "—"}</span></div>`;
+  }
+  html += '</div>';
+
+  if (positions.length) {
+    const p = positions[0];
+    const cur = (state.last_prices || {})[sym] || p.entry_price;
+    const ret = (cur / p.entry_price - 1) * p.side * 100;
+    html += `<h4 style="margin:16px 0 8px;font-size:13px;font-weight:600;">Active Position</h4>
+      <div class="modal-stat-grid">
+        <div><span>Entry</span><span>$${p.entry_price.toFixed(4)}</span></div>
+        <div><span>Now</span><span>$${cur.toFixed(4)}</span></div>
+        <div><span>Unrealized</span><span class="${cls(ret)}">${fmt.pct(ret)}</span></div>
+        <div><span>Size</span><span>${fmt.shortUsd(p.size_usd)}</span></div>
+        <div><span>Held</span><span>${fmt.agoShort(p.entry_time)}</span></div>
+        <div><span>Funding @ entry</span><span>${(p.funding_at_entry*100||0).toFixed(4)}%</span></div>
+      </div>`;
+  }
+
+  if (symTrades.length) {
+    html += `<h4 style="margin:16px 0 8px;font-size:13px;font-weight:600;">Recent ${symTrades.length} Trades</h4>
+      <table class="tbl"><thead><tr><th>Time</th><th>Event</th><th>Side</th><th class="right">Price</th><th class="right">P&L</th></tr></thead><tbody>`;
+    for (const t of symTrades) {
+      const sideLabel = t.side === 1 ? "LONG" : "SHORT";
+      const sideCls = t.side === 1 ? "gain-bg" : "loss-bg";
+      const evCls = t.event === "open" ? "accent" : ((t.pnl_usd||0) >= 0 ? "gain-bg" : "loss-bg");
+      const price = t.event === "open" ? (t.entry_price||0) : (t.exit_price||0);
+      const pnl = t.event === "close" ? `<span class="${cls(t.pnl_usd)}">${fmt.usd(t.pnl_usd||0)}</span>` : "—";
+      html += `<tr>
+        <td class="muted">${fmt.agoShort(t.ts)}</td>
+        <td><span class="badge ${evCls}">${t.event.toUpperCase()}</span></td>
+        <td><span class="badge ${sideCls}">${sideLabel}</span></td>
+        <td class="right">$${price.toFixed(4)}</td>
+        <td class="right">${pnl}</td>
+      </tr>`;
+    }
+    html += "</tbody></table>";
+  }
+
+  $("modal-content").innerHTML = html;
+  $("modal-backdrop").classList.add("show");
+  $("modal-backdrop").setAttribute("aria-hidden", "false");
+}
+
+function closeModal() {
+  $("modal-backdrop").classList.remove("show");
+  $("modal-backdrop").setAttribute("aria-hidden", "true");
+}
+
+$("modal-close").addEventListener("click", closeModal);
+$("modal-backdrop").addEventListener("click", e => { if (e.target.id === "modal-backdrop") closeModal(); });
+
+// Make sym pills/rows clickable to open modal — set up after each render
+let _lastState = null, _lastTrades = [];
+const _origLoad = loadAll;
+loadAll = async function(silent) {
+  const result = await _origLoad(silent);
+  // re-attach click handlers
+  setTimeout(attachSymClicks, 100);
+  return result;
+};
+
+function attachSymClicks() {
+  document.querySelectorAll("[data-sym]").forEach(el => {
+    if (el._symAttached) return;
+    el._symAttached = true;
+    el.classList.add("clickable");
+    el.addEventListener("click", () => showSymModal(el.dataset.sym, _lastState, _lastTrades));
+  });
+}
+
+// Wrap renderTopList / Positions / Attribution to add data-sym
+const _origRenderTopList = renderTopList;
+renderTopList = function(state) {
+  _origRenderTopList(state);
+  document.querySelectorAll(".top-row").forEach(row => {
+    const sym = row.querySelector(".top-sym")?.textContent;
+    if (sym) row.setAttribute("data-sym", sym);
+  });
+};
+
+const _origRenderPositions = renderPositions;
+renderPositions = function(state) {
+  _origRenderPositions(state);
+  document.querySelectorAll("#positions-table tbody tr").forEach(tr => {
+    const sym = tr.querySelector("td strong")?.textContent;
+    if (sym) tr.setAttribute("data-sym", sym);
+  });
+};
+
+const _origRenderAttr = renderAttribution;
+renderAttribution = function(state) {
+  _origRenderAttr(state);
+  document.querySelectorAll("#attribution-table tbody tr").forEach(tr => {
+    const cells = tr.querySelectorAll("td");
+    const sym = cells[1]?.querySelector("strong")?.textContent;
+    if (sym) tr.setAttribute("data-sym", sym);
+  });
+};
+
+// Cache state/trades for modal to use
+const _origLoad2 = loadAll;
+loadAll = async function(silent) {
+  if (!silent) $("refresh").classList.add("spinning");
+  try {
+    const [state, trades, comps] = await Promise.all([
+      fetchJson("/state/paper_state.json"),
+      fetchJsonl("/state/paper_trades.jsonl"),
+      fetchJsonl("/state/comparison_history.jsonl"),
+    ]);
+    _lastState = state; _lastTrades = trades;
+    allComps = comps;
+    renderHero(state, comps);
+    renderTopList(state);
+    renderPositions(state);
+    renderTrades(trades);
+    renderStats(trades, comps);
+    renderAttribution(state);
+    renderEquityChart(comps);
+    renderUnderwaterChart(comps);
+    renderFrictionChart(comps);
+    const lastTs = state.last_check || (comps.length ? comps[comps.length-1].ts : null);
+    $("last-updated").innerHTML = `<span id="status-dot" class="status-dot healthy"></span>Updated ${fmt.ago(lastTs)}`;
+    setTimeout(attachSymClicks, 50);
+    if (!silent) toast("Refreshed");
+  } catch (e) {
+    console.error(e);
+    $("last-updated").innerHTML = `<span class="status-dot error"></span>Error loading`;
+    if (!silent) toast("Error loading data");
+  } finally {
+    $("refresh").classList.remove("spinning");
+  }
+};
+
+// =================== COMMAND PALETTE ===================
+const COMMANDS = [
+  {section: "View", name: "Switch to 24h period", icon: "⏱", shortcut: "1", fn: () => switchPeriod(24)},
+  {section: "View", name: "Switch to 7d period", icon: "📅", shortcut: "2", fn: () => switchPeriod(168)},
+  {section: "View", name: "Switch to 30d period", icon: "📆", shortcut: "3", fn: () => switchPeriod(720)},
+  {section: "View", name: "Switch to all-time period", icon: "♾", shortcut: "4", fn: () => switchPeriod(0)},
+  {section: "Action", name: "Refresh data", icon: "↻", shortcut: "R", fn: () => loadAll(false)},
+  {section: "Action", name: "Toggle theme (light/dark)", icon: "◐", shortcut: "T", fn: toggleTheme},
+  {section: "Action", name: "Open repository on GitHub", icon: "↗", fn: () => window.open("https://github.com/williamsuchun/v10-alts-paper", "_blank")},
+  {section: "Action", name: "View latest workflow run", icon: "⚙", fn: () => window.open("https://github.com/williamsuchun/v10-alts-paper/actions", "_blank")},
+];
+
+let cmdkActive = -1;
+
+function openCmdK() {
+  $("cmdk-backdrop").classList.add("show");
+  $("cmdk-backdrop").setAttribute("aria-hidden", "false");
+  $("cmdk-input").value = "";
+  cmdkActive = 0;
+  renderCmdK("");
+  setTimeout(() => $("cmdk-input").focus(), 50);
+}
+function closeCmdK() {
+  $("cmdk-backdrop").classList.remove("show");
+  $("cmdk-backdrop").setAttribute("aria-hidden", "true");
+}
+
+function renderCmdK(query) {
+  const q = query.toLowerCase().trim();
+  // Add sym commands dynamically
+  const sp = (_lastState?.shadow_pnl) || {};
+  const symCommands = Object.keys(sp).map(sym => ({
+    section: "Symbols", name: `Open ${sym} details`, icon: "🪙", fn: () => { closeCmdK(); showSymModal(sym, _lastState, _lastTrades); }
+  }));
+  const all = [...COMMANDS, ...symCommands];
+  const matches = q ? all.filter(c => c.name.toLowerCase().includes(q) || (c.section || "").toLowerCase().includes(q)) : all;
+  if (!matches.length) {
+    $("cmdk-results").innerHTML = '<div class="cmdk-empty">No commands match.</div>';
+    return;
+  }
+  // Group by section
+  let html = "";
+  let lastSection = null;
+  matches.forEach((c, i) => {
+    if (c.section !== lastSection) {
+      html += `<div class="cmdk-section-label">${c.section}</div>`;
+      lastSection = c.section;
+    }
+    const activeCls = i === cmdkActive ? "active" : "";
+    html += `<div class="cmdk-item ${activeCls}" data-idx="${i}">
+      <span class="cmd-icon">${c.icon || "→"}</span>
+      <div class="cmd-text">
+        <div class="cmd-name">${c.name}</div>
+      </div>
+      ${c.shortcut ? `<span class="cmd-shortcut"><span class="kbd">${c.shortcut}</span></span>` : ""}
+    </div>`;
+  });
+  $("cmdk-results").innerHTML = html;
+  // Click handlers
+  document.querySelectorAll(".cmdk-item").forEach(el => {
+    el.addEventListener("click", () => {
+      const idx = parseInt(el.dataset.idx);
+      const cmd = matches[idx];
+      if (cmd) { closeCmdK(); cmd.fn(); }
+    });
+  });
+}
+
+$("cmdk-input").addEventListener("input", e => { cmdkActive = 0; renderCmdK(e.target.value); });
+
+document.addEventListener("keydown", e => {
+  // Cmd+K / Ctrl+K
+  if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+    e.preventDefault();
+    if ($("cmdk-backdrop").classList.contains("show")) closeCmdK(); else openCmdK();
+    return;
+  }
+  // Esc closes overlays
+  if (e.key === "Escape") {
+    closeCmdK();
+    closeModal();
+    return;
+  }
+  // CmdK navigation
+  if ($("cmdk-backdrop").classList.contains("show")) {
+    const items = document.querySelectorAll(".cmdk-item");
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      cmdkActive = Math.min(items.length - 1, cmdkActive + 1);
+      renderCmdK($("cmdk-input").value);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      cmdkActive = Math.max(0, cmdkActive - 1);
+      renderCmdK($("cmdk-input").value);
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      const active = document.querySelector(".cmdk-item.active");
+      if (active) active.click();
+    }
+    return;
+  }
+  // Skip shortcut handling if user typing in input
+  if (document.activeElement?.tagName === "INPUT" || document.activeElement?.tagName === "TEXTAREA") return;
+  // Quick shortcuts
+  if (e.key === "r" || e.key === "R") { e.preventDefault(); loadAll(false); }
+  else if (e.key === "t" || e.key === "T") { e.preventDefault(); toggleTheme(); }
+  else if (e.key === "1") { e.preventDefault(); switchPeriod(24); }
+  else if (e.key === "2") { e.preventDefault(); switchPeriod(168); }
+  else if (e.key === "3") { e.preventDefault(); switchPeriod(720); }
+  else if (e.key === "4") { e.preventDefault(); switchPeriod(0); }
+});
+
+$("cmdk-backdrop").addEventListener("click", e => { if (e.target.id === "cmdk-backdrop") closeCmdK(); });
+$("cmdk-trigger").addEventListener("click", openCmdK);
+
+// =================== PERIOD SWITCH ===================
+function switchPeriod(hours) {
+  currentPeriod = hours;
+  document.querySelectorAll("#equity-period-tabs .period-tab").forEach(b => {
+    b.classList.toggle("active", parseInt(b.dataset.period) === hours);
+  });
+  if (allComps.length) renderEquityChart(allComps);
+  toast(`Period: ${hours === 24 ? "24h" : hours === 168 ? "7d" : hours === 720 ? "30d" : "All"}`);
+}
+
+// =================== THEME TOGGLE ===================
+function toggleTheme() {
+  const cur = document.documentElement.dataset.theme;
+  const sysIsDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  const effective = cur || (sysIsDark ? "dark" : "light");
+  const next = effective === "dark" ? "light" : "dark";
+  document.documentElement.classList.add("theme-transitioning");
+  document.documentElement.dataset.theme = next;
+  $("theme-icon").textContent = next === "dark" ? "◑" : "◐";
+  localStorage.setItem("theme", next);
+  setTimeout(() => document.documentElement.classList.remove("theme-transitioning"), 350);
+  // Re-render charts with new theme
+  if (allComps.length) {
+    setTimeout(() => {
+      renderEquityChart(allComps);
+      renderUnderwaterChart(allComps);
+      renderFrictionChart(allComps);
+      renderHeroSparkline(allComps);
+    }, 100);
+  }
+  toast(`Theme: ${next}`);
+}
+$("theme-toggle").addEventListener("click", toggleTheme);
+
+// Restore saved theme
+const savedTheme = localStorage.getItem("theme");
+if (savedTheme) {
+  document.documentElement.dataset.theme = savedTheme;
+  setTimeout(() => { $("theme-icon").textContent = savedTheme === "dark" ? "◑" : "◐"; }, 0);
+}
+
+// =================== SHORTCUT HINT (first visit) ===================
+if (!localStorage.getItem("kbd-hint-seen")) {
+  setTimeout(() => {
+    $("kbd-hint-banner").classList.add("show");
+    setTimeout(() => $("kbd-hint-banner").classList.remove("show"), 6000);
+    localStorage.setItem("kbd-hint-seen", "1");
+  }, 1500);
+}
