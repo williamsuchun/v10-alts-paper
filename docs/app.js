@@ -843,3 +843,168 @@ if (!localStorage.getItem("kbd-hint-seen")) {
     localStorage.setItem("kbd-hint-seen", "1");
   }, 1500);
 }
+
+// =================== STICKY HEADER ON SCROLL ===================
+const stickyHeader = $("sticky-header");
+const heroEl = document.querySelector(".hero");
+function updateStickyHeader() {
+  const heroBottom = heroEl.getBoundingClientRect().bottom;
+  if (heroBottom < 20) {
+    stickyHeader.classList.add("show");
+    stickyHeader.setAttribute("aria-hidden", "false");
+    // Sync values
+    if (_lastState) {
+      const init = _lastState.initial_capital || 10000;
+      const cash = _lastState.equity || init;
+      const positions = _lastState.positions || [];
+      const lastPrices = _lastState.last_prices || {};
+      let floating = 0;
+      for (const p of positions) {
+        const cur = lastPrices[p.sym] || p.entry_price;
+        floating += (cur / p.entry_price - 1) * p.side * p.size_usd;
+      }
+      const total = cash + floating;
+      const roi = (total / init - 1) * 100;
+      $("sticky-eq").textContent = fmt.usd(total);
+      $("sticky-roi").textContent = fmt.pct(roi);
+      $("sticky-roi").className = cls(roi);
+      const eq24 = (() => {
+        const cutoff = Date.now() - 24 * 3600 * 1000;
+        const past = allComps.find(c => new Date(c.ts).getTime() >= cutoff);
+        return past ? past.paper_total : init;
+      })();
+      const r24 = (total / eq24 - 1) * 100;
+      const e24 = $("sticky-24h");
+      e24.textContent = " " + fmt.pct(r24);
+      e24.className = cls(r24);
+    }
+  } else {
+    stickyHeader.classList.remove("show");
+    stickyHeader.setAttribute("aria-hidden", "true");
+  }
+}
+window.addEventListener("scroll", updateStickyHeader, {passive: true});
+
+// =================== TRADES SEARCH FILTER ===================
+let _tradesFilter = "";
+$("trades-search").addEventListener("input", (e) => {
+  _tradesFilter = e.target.value.toLowerCase().trim();
+  applyTradesFilter();
+});
+function applyTradesFilter() {
+  const rows = document.querySelectorAll("#trades-table tbody tr");
+  let visible = 0;
+  rows.forEach(r => {
+    const text = r.textContent.toLowerCase();
+    const match = !_tradesFilter || text.includes(_tradesFilter);
+    r.style.display = match ? "" : "none";
+    if (match) visible++;
+  });
+  $("trades-sub").textContent = _tradesFilter
+    ? `${visible} match · "${_tradesFilter}"`
+    : "last 20 events";
+}
+
+// Re-apply filter after each render
+const _origRenderTrades = renderTrades;
+renderTrades = function(trades) {
+  _origRenderTrades(trades);
+  applyTradesFilter();
+};
+
+// =================== ATTRIBUTION INLINE SPARKLINES ===================
+function buildSparkSVG(values, color, width = 60, height = 18) {
+  if (!values || values.length < 2) return "";
+  const max = Math.max(...values), min = Math.min(...values);
+  const range = max - min || 1;
+  const w = width, h = height;
+  const step = w / (values.length - 1);
+  const pts = values.map((v, i) => `${(i*step).toFixed(1)},${(h - ((v - min) / range) * h).toFixed(1)}`).join(" ");
+  return `<svg class="attr-spark" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">
+    <polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+  </svg>`;
+}
+
+function buildSymPnlSeries(sym, trades) {
+  // cumulative P&L over closed trades for this sym
+  const closes = trades.filter(t => t.event === "close" && t.sym === sym);
+  if (!closes.length) return [];
+  let cum = 0;
+  return closes.map(t => { cum += (t.pnl_usd || 0); return cum; });
+}
+
+const _origRenderAttribution = renderAttribution;
+renderAttribution = function(state) {
+  const trades = _lastTrades || [];
+  const attr = state.pnl_attribution || {};
+  const entries = Object.entries(attr).map(([sym, a]) => ({
+    sym, total: a.total_pnl, n: a.n_trades, wins: a.wins, losses: a.losses,
+    wr: a.n_trades ? (a.wins / a.n_trades * 100) : 0,
+  }));
+  entries.sort((a, b) => b.total - a.total);
+  if (!entries.length) {
+    setHTML("attribution-table", '<div class="empty">no closed trades yet</div>');
+    return;
+  }
+  const rows = entries.map((e, i) => {
+    const series = buildSymPnlSeries(e.sym, trades);
+    const sparkColor = e.total >= 0 ? "var(--gain)" : "var(--loss)";
+    const spark = series.length >= 2 ? buildSparkSVG(series, e.total >= 0 ? "#5b8c6e" : "#b85450") : "";
+    return `<tr data-sym="${e.sym}">
+      <td><span class="top-rank ${i < 3 ? 'gold' : ''}">${i+1}</span></td>
+      <td><strong>${e.sym}</strong></td>
+      <td class="hide-mobile">${spark}</td>
+      <td class="right ${cls(e.total)}"><strong>${fmt.usd(e.total)}</strong></td>
+      <td class="right">${e.n}</td>
+      <td class="right muted hide-mobile">${e.wins}W / ${e.losses}L</td>
+      <td class="right">${e.wr.toFixed(0)}%</td>
+    </tr>`;
+  }).join("");
+  setHTML("attribution-table",
+    `<table class="tbl"><thead><tr><th></th><th>Sym</th><th class="hide-mobile">Trend</th>` +
+    `<th class="right">Total P&amp;L</th><th class="right">Trades</th>` +
+    `<th class="right hide-mobile">W/L</th><th class="right">WR</th>` +
+    `</tr></thead><tbody>${rows}</tbody></table>`);
+  setTimeout(attachSymClicks, 50);
+};
+
+// =================== COUNT-UP ANIMATION ===================
+function countUp(el, end, duration = 800, formatter = (n) => n.toFixed(2)) {
+  if (!el) return;
+  const start = parseFloat(el.dataset.lastVal || "0");
+  const t0 = performance.now();
+  const ease = (t) => 1 - Math.pow(1 - t, 3);  // easeOutCubic
+  function frame(now) {
+    const t = Math.min(1, (now - t0) / duration);
+    const v = start + (end - start) * ease(t);
+    el.textContent = formatter(v);
+    if (t < 1) requestAnimationFrame(frame);
+    else el.dataset.lastVal = end;
+  }
+  requestAnimationFrame(frame);
+}
+
+// First-load count-up for hero equity
+let _heroAnimated = false;
+const _origRenderHero = renderHero;
+renderHero = function(state, comps) {
+  _origRenderHero(state, comps);
+  if (!_heroAnimated) {
+    const init = state.initial_capital || 10000;
+    const cash = state.equity || init;
+    const positions = state.positions || [];
+    const lastPrices = state.last_prices || {};
+    let floating = 0;
+    for (const p of positions) {
+      const cur = lastPrices[p.sym] || p.entry_price;
+      floating += (cur / p.entry_price - 1) * p.side * p.size_usd;
+    }
+    const total = cash + floating;
+    const el = $("total-eq");
+    if (el) {
+      el.dataset.lastVal = "0";
+      countUp(el, total, 1000, n => "$" + n.toLocaleString("en-US", {maximumFractionDigits: 2, minimumFractionDigits: 2}));
+    }
+    _heroAnimated = true;
+  }
+};

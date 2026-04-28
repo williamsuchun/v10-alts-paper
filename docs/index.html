@@ -23,6 +23,24 @@
 <body>
 <div class="app">
 
+  <!-- Sticky compact header (appears on scroll past hero) -->
+  <div id="sticky-header" class="sticky-header" aria-hidden="true">
+    <div class="sticky-inner">
+      <div class="sticky-left">
+        <strong id="sticky-eq">—</strong>
+        <span class="sep">·</span>
+        <span id="sticky-roi" class="muted">—</span>
+        <span class="sep">·</span>
+        <span class="muted">24h</span><span id="sticky-24h">—</span>
+      </div>
+      <div class="sticky-right">
+        <button class="ghost-btn icon-btn" onclick="window.scrollTo({top:0,behavior:'smooth'})" title="Scroll to top">↑</button>
+        <button class="ghost-btn icon-btn" onclick="loadAll(false)" title="Refresh (R)">↻</button>
+        <button class="ghost-btn kbd-hint" onclick="openCmdK()" title="Command (⌘K)">⌘K</button>
+      </div>
+    </div>
+  </div>
+
   <header>
     <div class="title">
       <h1>v10 alts paper</h1>
@@ -133,7 +151,11 @@
       <div class="card-header">
         <div class="card-header-text">
           <h2>Recent Trades</h2>
-          <p class="card-sub">last 20 events</p>
+          <p class="card-sub" id="trades-sub">last 20 events</p>
+        </div>
+        <div class="search-wrap">
+          <span class="search-icon">⌕</span>
+          <input id="trades-search" type="text" placeholder="Filter sym, event…" autocomplete="off">
         </div>
       </div>
       <div id="trades-table"></div>
