@@ -40,20 +40,21 @@ UNIVERSE = [
 ]
 
 CFG = dict(
-    leverage=3.0,                  # base, regime-adjusted
+    leverage=3.0,
     leverage_regime=True,
-    leverage_min=1.5,
-    leverage_max=4.0,
-    funding_thr=0.0003,
+    leverage_min=2.0,              # was 1.5
+    leverage_max=3.5,              # was 4.0
+    funding_thr=0.0003,            # global
     funding_thr_quantile=0.85,
     funding_thr_history_h=720,
     funding_thr_min=0.0001,
     funding_thr_max=0.002,
-    hold_hours=8,
+    hold_hours=12,                 # was 8 — at realistic slip, less turnover wins
     stop_pct=0.06,
     lookback_hours=336,
-    top_pct=40,
-    fee=0.0005, slippage=0.0008,
+    top_pct=20,                    # was 40
+    fee=0.0005, slippage=0.0005,    # 5bp avg at $10k size; revisit at scale
+    use_per_coin_thr=False,
 )
 
 # === Risk gates ===
@@ -216,6 +217,8 @@ def is_funding_hour(t): return t.hour % 8 == 0
 
 
 def per_coin_thr(state, sym):
+    if not CFG.get("use_per_coin_thr", False):
+        return CFG["funding_thr"]
     state.setdefault("funding_history", {})
     hist = state["funding_history"].get(sym, [])
     if len(hist) < 30: return CFG["funding_thr"]

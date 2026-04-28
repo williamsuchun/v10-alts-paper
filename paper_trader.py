@@ -43,21 +43,22 @@ UNIVERSE = [
 CFG = dict(
     universe=UNIVERSE,
     initial_capital=10_000.0,
-    leverage=3.0,                  # base leverage; regime-adjusted below
-    leverage_regime=True,          # if True, scale lev by BTC vol
-    leverage_min=1.5,              # in risk-off regime
-    leverage_max=4.0,              # in calm regime
-    funding_thr=0.0003,            # global FALLBACK; per-coin auto thr below takes over after warmup
-    funding_thr_quantile=0.85,
+    leverage=3.0,                  # base; regime-adjusted (kept — only triggers in extreme vol)
+    leverage_regime=True,
+    leverage_min=2.0,              # was 1.5 — less aggressive de-risking (only chaos)
+    leverage_max=3.5,              # was 4.0 — less amplification in calm
+    funding_thr=0.0003,            # GLOBAL (per-coin reverted: caused over-trading on memes)
+    funding_thr_quantile=0.85,     # disabled effectively but kept for future
     funding_thr_history_h=720,
     funding_thr_min=0.0001,
     funding_thr_max=0.002,
-    hold_hours=8,
+    hold_hours=12,                 # was 8 — at slip=0.0008, longer hold beats turnover
     stop_pct=0.06,
     lookback_hours=336,
-    top_pct=40,
+    top_pct=20,                    # was 40 — at slip=0.0008, fewer concentrated positions win
     fee=0.0005,
-    slippage=0.0008,
+    slippage=0.0005,               # was 0.0008 (too pessimistic). 5bp = avg across 52 syms at $10k size
+    use_per_coin_thr=False,
 )
 
 REPO = Path(__file__).parent
@@ -203,15 +204,15 @@ def is_funding_hour(t):
 
 # ============== Strategy ==============
 def per_coin_thr(state, sym):
-    """Per-coin funding threshold = max(min_thr, p85 of recent |funding|).
-    Falls back to global thr until enough history."""
+    """Per-coin threshold or global, controlled by CFG['use_per_coin_thr']."""
+    if not CFG.get("use_per_coin_thr", False):
+        return CFG["funding_thr"]
     state.setdefault("funding_history", {})
     hist = state["funding_history"].get(sym, [])
-    min_n = 30  # need ≥30 funding events for stable quantile (≈10d at 3/day)
+    min_n = 30
     if len(hist) < min_n:
         return CFG["funding_thr"]
-    # Use only last N events
-    n_keep = CFG["funding_thr_history_h"] // 8  # funding events per window
+    n_keep = CFG["funding_thr_history_h"] // 8
     recent = hist[-n_keep:]
     abs_vals = sorted(abs(f) for f in recent)
     q_idx = int(len(abs_vals) * CFG["funding_thr_quantile"])
