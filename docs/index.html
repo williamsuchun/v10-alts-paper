@@ -26,6 +26,21 @@
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js" defer></script>
 </head>
 <body>
+<!-- Splash screen (shows immediately, fades when data loads) -->
+<div id="splash" class="splash">
+  <div class="splash-inner">
+    <svg class="splash-logo" viewBox="0 0 80 80">
+      <rect width="80" height="80" rx="18" fill="var(--bg-card, #fff)"/>
+      <g fill="none" stroke="#c96442" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M 14 28 L 27 56 L 40 32 L 51 44 L 61 24 L 68 32"/>
+      </g>
+      <text x="40" y="70" text-anchor="middle" font-size="11" font-weight="600" font-family="Geist, system-ui" fill="#2a2823">v10</text>
+    </svg>
+    <div class="splash-text">v10 alts paper</div>
+    <div class="splash-spinner"></div>
+  </div>
+</div>
+
 <div class="app">
 
   <!-- Funding rate live ticker (top scrolling bar) -->
@@ -67,9 +82,13 @@
         <span id="status-dot" class="status-dot healthy"></span>loading…
       </span>
       <span id="next-refresh" class="muted next-refresh" title="Next auto-refresh">—</span>
+      <button id="sound-toggle" class="ghost-btn icon-btn" title="Toggle sound effects (S)" aria-label="Sound">
+        <span class="icon" id="sound-icon">🔇</span>
+      </button>
       <button id="density-toggle" class="ghost-btn icon-btn" title="Toggle density (D)" aria-label="Density">
         <span class="icon" id="density-icon">⊟</span>
       </button>
+      <span id="ws-status" class="ws-status" title="WebSocket connection">●</span>
       <button id="cmdk-trigger" class="ghost-btn kbd-hint" title="Command menu (⌘K)">
         <span>⌘K</span>
       </button>

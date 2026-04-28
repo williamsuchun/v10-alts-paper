@@ -1506,6 +1506,141 @@ body::before {
   color: var(--text-muted);
 }
 
+/* ========== Splash screen ========== */
+.splash {
+  position: fixed;
+  inset: 0;
+  background: var(--bg);
+  z-index: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.5s var(--ease), visibility 0.5s;
+}
+.splash.fade {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+.splash-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+}
+.splash-logo {
+  width: 80px;
+  height: 80px;
+  animation: splashPulse 1.4s var(--ease-out) infinite;
+}
+@keyframes splashPulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.06); }
+}
+.splash-text {
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+.splash-spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--bg-subtle);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-top: 4px;
+}
+
+/* ========== WebSocket status indicator ========== */
+.ws-status {
+  font-size: 8px;
+  color: var(--text-faint);
+  margin-left: 4px;
+  cursor: help;
+  transition: color 0.3s var(--ease);
+}
+.ws-status.live {
+  color: var(--gain);
+  animation: wsPulse 2s ease-in-out infinite;
+}
+.ws-status.connecting { color: #d9a64a; }
+.ws-status.error { color: var(--loss); }
+@keyframes wsPulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* ========== Help tooltips (? icons) ========== */
+.help {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--bg-subtle);
+  color: var(--text-muted);
+  font-size: 9px;
+  font-weight: 600;
+  cursor: help;
+  margin-left: 4px;
+  vertical-align: middle;
+  position: relative;
+  transition: all 0.15s var(--ease);
+}
+.help:hover {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+.help-tip {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  background: var(--text);
+  color: var(--bg-card);
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1.4;
+  width: 220px;
+  text-align: left;
+  opacity: 0;
+  pointer-events: none;
+  transition: all 0.18s var(--ease);
+  z-index: 60;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.18);
+}
+.help-tip::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top-color: var(--text);
+}
+.help:hover .help-tip {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* Live price update flash */
+.price-up { animation: priceUp 0.6s var(--ease); }
+.price-down { animation: priceDown 0.6s var(--ease); }
+@keyframes priceUp {
+  0% { color: var(--gain); }
+  100% { color: var(--text); }
+}
+@keyframes priceDown {
+  0% { color: var(--loss); }
+  100% { color: var(--text); }
+}
+
 /* ========== Achievements (milestone notifications) ========== */
 .achievement {
   position: fixed;

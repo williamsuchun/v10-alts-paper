@@ -2372,6 +2372,196 @@ function saveCardOrder() {
   toast("Layout saved");
 }
 
+// =================== SPLASH SCREEN ===================
+function dismissSplash() {
+  const s = document.getElementById("splash");
+  if (s) {
+    s.classList.add("fade");
+    setTimeout(() => s.remove(), 600);
+  }
+}
+
+// =================== SOUND EFFECTS ===================
+let _soundOn = localStorage.getItem("sound") === "on";
+const _audioCtx = (() => {
+  try { return new (window.AudioContext || window.webkitAudioContext)(); } catch { return null; }
+})();
+function beep(freq = 660, dur = 120, vol = 0.05) {
+  if (!_soundOn || !_audioCtx) return;
+  try {
+    const osc = _audioCtx.createOscillator();
+    const g = _audioCtx.createGain();
+    osc.connect(g); g.connect(_audioCtx.destination);
+    osc.type = "sine"; osc.frequency.value = freq;
+    g.gain.setValueAtTime(0, _audioCtx.currentTime);
+    g.gain.linearRampToValueAtTime(vol, _audioCtx.currentTime + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.001, _audioCtx.currentTime + dur/1000);
+    osc.start(); osc.stop(_audioCtx.currentTime + dur/1000);
+  } catch (e) {}
+}
+function toggleSound() {
+  _soundOn = !_soundOn;
+  localStorage.setItem("sound", _soundOn ? "on" : "off");
+  $("sound-icon").textContent = _soundOn ? "🔊" : "🔇";
+  toast(`Sound: ${_soundOn ? "on" : "off"}`);
+  if (_soundOn) beep(660, 80, 0.04);
+}
+$("sound-toggle").addEventListener("click", toggleSound);
+if (_soundOn) $("sound-icon").textContent = "🔊";
+COMMANDS.push({section: "View", name: "Toggle sound effects", icon: "🔊", shortcut: "S", fn: toggleSound});
+document.addEventListener("keydown", e => {
+  if (document.activeElement?.tagName === "INPUT" || document.activeElement?.tagName === "TEXTAREA") return;
+  if ($("cmdk-backdrop").classList.contains("show")) return;
+  if (e.key === "s" || e.key === "S") {
+    if (!e.metaKey && !e.ctrlKey) { e.preventDefault(); toggleSound(); }
+  }
+});
+
+// Beep on achievement unlock
+const _origShowAch = showNextAchievement;
+showNextAchievement = function() {
+  if (!_achievementShowing && _achievementQueue.length) beep(880, 200, 0.06);
+  _origShowAch();
+};
+
+// =================== WEBSOCKET LIVE PRICES ===================
+let _ws = null;
+let _wsSubbed = new Set();
+
+function setupWS(syms) {
+  if (!syms.length) {
+    if (_ws) { _ws.close(); _ws = null; }
+    $("ws-status").className = "ws-status";
+    $("ws-status").title = "WebSocket idle (no positions)";
+    return;
+  }
+  const newSet = new Set(syms);
+  // Compare with current subscriptions
+  const same = newSet.size === _wsSubbed.size && [...newSet].every(s => _wsSubbed.has(s));
+  if (same && _ws && _ws.readyState === 1) return;
+  // Close & reopen
+  if (_ws) try { _ws.close(); } catch {}
+  $("ws-status").className = "ws-status connecting";
+  $("ws-status").title = "WebSocket connecting…";
+  // Binance USDM perpetual ticker stream
+  // Symbols need to be lowercase: dogeusdt → dogeusdt@ticker
+  const streams = syms.map(s => s.toLowerCase() + "@ticker").join("/");
+  const url = `wss://fstream.binance.com/stream?streams=${streams}`;
+  try {
+    _ws = new WebSocket(url);
+    _wsSubbed = newSet;
+    _ws.onopen = () => {
+      $("ws-status").className = "ws-status live";
+      $("ws-status").title = `WebSocket live (${syms.length} syms)`;
+    };
+    _ws.onmessage = (e) => {
+      try {
+        const data = JSON.parse(e.data);
+        const t = data.data;
+        if (!t || !t.s) return;
+        const sym = t.s;  // e.g. "DOGEUSDT"
+        const price = parseFloat(t.c);
+        if (price && _lastState) {
+          const prev = (_lastState.last_prices || {})[sym];
+          (_lastState.last_prices = _lastState.last_prices || {})[sym] = price;
+          // Re-render positions if this affects an active position
+          if ((_lastState.positions || []).some(p => p.sym === sym)) {
+            renderPositionsLive(prev, sym, price);
+          }
+        }
+      } catch (err) {}
+    };
+    _ws.onerror = () => {
+      $("ws-status").className = "ws-status error";
+      $("ws-status").title = "WebSocket error";
+    };
+    _ws.onclose = () => {
+      $("ws-status").className = "ws-status";
+      $("ws-status").title = "WebSocket closed";
+      // Auto-reconnect after 5s if still have positions
+      setTimeout(() => {
+        if (_lastState && (_lastState.positions || []).length) {
+          setupWS((_lastState.positions || []).map(p => p.sym));
+        }
+      }, 5000);
+    };
+  } catch (e) {
+    console.error("ws err:", e);
+    $("ws-status").className = "ws-status error";
+  }
+}
+
+// Throttle re-render of positions to avoid layout thrash
+let _renderPosTimer = null;
+function renderPositionsLive(prev, sym, newPrice) {
+  if (_renderPosTimer) return;
+  _renderPosTimer = setTimeout(() => {
+    _renderPosTimer = null;
+    if (!_lastState) return;
+    renderPositions(_lastState);
+    // Flash the row
+    const tr = document.querySelector(`#positions-table tr[data-sym="${sym}"]`);
+    if (tr && prev) {
+      const cur = newPrice;
+      tr.classList.remove("price-up", "price-down");
+      void tr.offsetWidth;
+      tr.classList.add(cur > prev ? "price-up" : "price-down");
+    }
+  }, 250);  // 250ms throttle
+}
+
+// =================== HELP TOOLTIPS ===================
+function addHelpTooltip(targetSelector, text) {
+  document.querySelectorAll(targetSelector).forEach(el => {
+    if (el.querySelector(".help")) return;
+    const help = document.createElement("span");
+    help.className = "help";
+    help.textContent = "?";
+    help.innerHTML = `?<span class="help-tip">${text}</span>`;
+    el.appendChild(help);
+  });
+}
+
+function attachHelpTooltips() {
+  // Add helpers to specific labels
+  const helpTexts = {
+    "Max DD": "Maximum drawdown — largest peak-to-trough loss observed in your equity curve.",
+    "Open": "Number of currently open positions awaiting hold expiry or stop loss.",
+    "Regime": "Market volatility regime based on BTC 14d annualized realized volatility.",
+    "Active leverage": "Currently applied leverage, regime-adjusted between configured min/max.",
+    "Net exposure": "Long minus short notional, as % of equity. Closer to 0 = more delta-neutral.",
+    "Win rate": "Percentage of closed trades with positive P&L.",
+    "Profit factor": "Gross profit ÷ gross loss. Above 1.0 means net profitable.",
+    "Friction": "Paper actual P&L vs theoretical 'frictionless' shadow P&L. Positive = paper underperforms.",
+    "Stops hit": "Trades closed via -6% stop loss (vs natural 12h hold expiry).",
+    "Snapshots": "Number of comparator snapshots in window (1 per cron run).",
+  };
+  // Inject ? next to text in stat-grid rows + regime items
+  document.querySelectorAll(".stat-row span:first-child, .regime-item .label-sm, .stat-label").forEach(el => {
+    const text = el.textContent.trim();
+    if (helpTexts[text] && !el.querySelector(".help")) {
+      const help = document.createElement("span");
+      help.className = "help";
+      help.innerHTML = `?<span class="help-tip">${helpTexts[text]}</span>`;
+      el.appendChild(help);
+    }
+  });
+}
+
+// =================== ALSO BEEP ON OPEN/CLOSE EVENTS ===================
+let _lastTradeCount = 0;
+function checkTradeEvents(trades) {
+  const total = trades.filter(t => t.event === "open" || t.event === "close").length;
+  if (_lastTradeCount > 0 && total > _lastTradeCount) {
+    const newOnes = trades.slice(-(total - _lastTradeCount));
+    for (const t of newOnes) {
+      if (t.event === "open") beep(523, 90, 0.05);
+      else if (t.event === "close") beep((t.pnl_usd || 0) >= 0 ? 784 : 392, 150, 0.05);
+    }
+  }
+  _lastTradeCount = total;
+}
+
 // =================== AUGMENT loadAll for new sections ===================
 const _origLoad4 = loadAll;
 loadAll = async function(silent) {
@@ -2408,15 +2598,26 @@ loadAll = async function(silent) {
       attachCardFocus();
       attachCardCollapse();
       attachCardDrag();
+      attachHelpTooltips();
       buildScrollSpy();
+      // Setup WS for active position symbols
+      const syms = (state.positions || []).map(p => p.sym);
+      setupWS(syms);
     }, 50);
     checkAchievements(state, trades, comps);
+    checkTradeEvents(trades);
+    // Dismiss splash on first successful load
+    dismissSplash();
     if (!silent) toast("Refreshed");
   } catch (e) {
     console.error(e);
     $("last-updated").innerHTML = `<span class="status-dot error"></span>Error loading`;
     if (!silent) toast("Error loading data");
+    dismissSplash();
   } finally {
     $("refresh").classList.remove("spinning");
   }
 };
+
+// Safety: dismiss splash after 6s even if loadAll hangs
+setTimeout(() => { try { dismissSplash(); } catch {} }, 6000);

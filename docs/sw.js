@@ -1,5 +1,5 @@
 // Service worker — network-first for shell (fresh code), cache fallback offline
-const VERSION = "v9-2026-04-28-export";
+const VERSION = "v10-2026-04-28-ws";
 const SHELL_CACHE = `v10-shell-${VERSION}`;
 const SHELL_FILES = [
   "./",
