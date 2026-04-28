@@ -1332,3 +1332,196 @@ body::before {
 @media (max-width: 700px) {
   .heatmap-cell { width: 10px; height: 10px; }
 }
+
+/* ========== Treemap (capital allocation) ========== */
+.treemap {
+  display: grid;
+  grid-template-columns: repeat(20, 1fr);
+  grid-auto-rows: 16px;
+  gap: 2px;
+  height: 280px;
+  align-content: start;
+}
+.treemap-cell {
+  background: var(--accent-soft);
+  border-radius: 3px;
+  padding: 4px 6px;
+  font-size: 10px;
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  overflow: hidden;
+  cursor: pointer;
+  transition: all 0.2s var(--ease);
+  position: relative;
+  min-height: 16px;
+}
+.treemap-cell:hover {
+  transform: scale(1.04);
+  z-index: 5;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+.treemap-cell.long { background: var(--gain-soft); color: var(--gain-strong); }
+.treemap-cell.short { background: var(--loss-soft); color: var(--loss-strong); }
+.treemap-cell strong {
+  font-family: var(--mono);
+  font-weight: 600;
+  font-size: 11px;
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.treemap-cell .tm-pnl {
+  font-family: var(--mono);
+  font-size: 9px;
+  opacity: 0.8;
+  font-variant-numeric: tabular-nums;
+}
+.treemap-empty {
+  grid-column: 1 / -1;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-style: italic;
+}
+
+/* ========== Card focus/maximize mode ========== */
+.card { cursor: default; }
+.card-focused {
+  position: fixed;
+  top: max(20px, env(safe-area-inset-top));
+  left: max(20px, env(safe-area-inset-left));
+  right: max(20px, env(safe-area-inset-right));
+  bottom: max(20px, env(safe-area-inset-bottom));
+  z-index: 150;
+  margin: 0 auto;
+  max-width: 1200px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.25), 0 0 0 1px var(--border-strong) !important;
+  animation: focusZoom 0.25s var(--ease-out);
+}
+@keyframes focusZoom {
+  from { transform: scale(0.96); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+.focus-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(20, 18, 14, 0.4);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  z-index: 140;
+  display: none;
+  cursor: pointer;
+  animation: fadeIn 0.2s var(--ease);
+}
+.focus-backdrop.show { display: block; }
+@keyframes fadeIn { from {opacity: 0;} to {opacity: 1;} }
+
+.card-focus-btn {
+  background: transparent;
+  border: 0;
+  color: var(--text-muted);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  opacity: 0;
+  transition: all 0.15s var(--ease);
+}
+.card:hover .card-focus-btn { opacity: 0.5; }
+.card-focus-btn:hover { opacity: 1 !important; background: var(--bg-hover); color: var(--text); }
+.card-focused .card-focus-btn { opacity: 1; }
+
+/* ========== Pull-to-refresh ========== */
+.ptr-indicator {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%) translateY(-100%);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-top: 0;
+  border-radius: 0 0 12px 12px;
+  padding: 8px 16px;
+  font-size: 12px;
+  color: var(--text-muted);
+  z-index: 200;
+  transition: transform 0.2s var(--ease);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ptr-indicator.show { transform: translateX(-50%) translateY(0); }
+.ptr-indicator .ptr-icon {
+  display: inline-block;
+  transition: transform 0.15s var(--ease);
+}
+.ptr-indicator.ready .ptr-icon { transform: rotate(180deg); }
+
+/* ========== Context menu ========== */
+.context-menu {
+  position: fixed;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 6px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
+  z-index: 250;
+  min-width: 200px;
+  display: none;
+  animation: fadeIn 0.12s var(--ease);
+}
+.context-menu.show { display: block; }
+.ctx-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text);
+  transition: background 0.1s var(--ease);
+}
+.ctx-item:hover { background: var(--bg-hover); }
+.ctx-item.divider {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 0;
+  padding: 0;
+  pointer-events: none;
+}
+.ctx-icon { width: 16px; opacity: 0.6; }
+.ctx-shortcut {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+/* ========== Compare overlay toggle ========== */
+.compare-toggle {
+  background: var(--bg-subtle);
+  border: 1px solid transparent;
+  border-radius: 6px;
+  padding: 4px 10px;
+  font-size: 11px;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-family: var(--mono);
+  transition: all 0.15s var(--ease);
+  margin-left: 8px;
+}
+.compare-toggle:hover { color: var(--text); }
+.compare-toggle.active {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  border-color: var(--accent);
+}

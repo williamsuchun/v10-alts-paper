@@ -1302,8 +1302,368 @@ renderPositions = function(state) {
   });
 };
 
-// Augment loadAll once more to render new sections + attach previews
-const _origLoad3 = loadAll;
+// =================== TREEMAP (capital allocation) ===================
+function renderTreemap(state) {
+  const positions = state.positions || [];
+  const lastPrices = state.last_prices || {};
+  const container = $("treemap");
+  if (!positions.length) {
+    container.innerHTML = '<div class="treemap-empty">no active positions — awaiting funding signals</div>';
+    return;
+  }
+  // Compute total notional and per-pos size
+  const totalNotional = positions.reduce((s, p) => s + p.size_usd, 0);
+  const cells = positions.map(p => {
+    const cur = lastPrices[p.sym] || p.entry_price;
+    const ret = (cur / p.entry_price - 1) * p.side * 100;
+    return {
+      sym: p.sym,
+      side: p.side,
+      sizeUsd: p.size_usd,
+      ret,
+      frac: p.size_usd / totalNotional,
+    };
+  }).sort((a, b) => b.sizeUsd - a.sizeUsd);
+
+  // 20-col grid, 18 rows = 360 cells. Each cell = ~0.27% allocation.
+  const TOTAL_CELLS = 360;
+  let html = "";
+  for (const c of cells) {
+    const span = Math.max(8, Math.round(c.frac * TOTAL_CELLS));
+    const cols = Math.min(20, Math.max(2, Math.ceil(Math.sqrt(span * 1.5))));
+    const rows = Math.max(1, Math.ceil(span / cols));
+    const sideCls = c.side === 1 ? "long" : "short";
+    const ret = c.ret;
+    const arrow = ret >= 0 ? "↑" : "↓";
+    html += `<div class="treemap-cell ${sideCls}" data-sym="${c.sym}"
+              style="grid-column: span ${cols}; grid-row: span ${rows};"
+              title="${c.sym} ${c.side === 1 ? 'LONG' : 'SHORT'} · ${fmt.shortUsd(c.sizeUsd)} · ${fmt.pct(ret)}">
+      <strong>${c.sym.replace("USDT", "")}</strong>
+      <span class="tm-pnl">${arrow} ${fmt.pct(ret)}</span>
+    </div>`;
+  }
+  container.innerHTML = html;
+  // Click to open detail
+  setTimeout(() => {
+    container.querySelectorAll(".treemap-cell").forEach(el => {
+      el.classList.add("clickable");
+    });
+    attachSymClicks();
+    attachHoverPreviews();
+  }, 50);
+}
+
+// =================== WEEKLY ROI HISTOGRAM ===================
+function renderWeeklyHist(comps) {
+  const ctx = $("weekly-hist").getContext("2d");
+  if (charts.weeklyHist) charts.weeklyHist.destroy();
+  if (!comps.length) return;
+
+  // Bucket comps into weekly snapshots, compute weekly ROI
+  const weekly = [];
+  let weekStart = comps[0].paper_total;
+  let weekStartTs = new Date(comps[0].ts).getTime();
+  for (const c of comps) {
+    const ts = new Date(c.ts).getTime();
+    if (ts - weekStartTs >= 7 * 86400 * 1000) {
+      const roi = (c.paper_total / weekStart - 1) * 100;
+      weekly.push(roi);
+      weekStart = c.paper_total;
+      weekStartTs = ts;
+    }
+  }
+  if (weekly.length < 1) {
+    ctx.canvas.parentElement.innerHTML = '<div class="empty">need at least 1 week of data</div>';
+    return;
+  }
+  // Bucket into bins
+  const min = Math.min(-15, ...weekly);
+  const max = Math.max(15, ...weekly);
+  const binSize = 2.5;
+  const bins = {};
+  weekly.forEach(r => {
+    const bin = Math.round(r / binSize) * binSize;
+    bins[bin] = (bins[bin] || 0) + 1;
+  });
+  const sortedBins = Object.keys(bins).map(Number).sort((a, b) => a - b);
+  const t = chartTheme();
+  charts.weeklyHist = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels: sortedBins.map(b => (b >= 0 ? "+" : "") + b.toFixed(0) + "%"),
+      datasets: [{
+        data: sortedBins.map(b => bins[b]),
+        backgroundColor: sortedBins.map(b => b >= 0 ? "rgba(91,140,110,0.7)" : "rgba(184,84,80,0.7)"),
+        borderWidth: 0,
+        borderRadius: 4,
+      }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: {display: false},
+        tooltip: {
+          backgroundColor: t.bg, titleColor: t.text, bodyColor: t.text,
+          borderColor: t.grid, borderWidth: 1, padding: 8, cornerRadius: 6,
+          callbacks: {label: c => `${c.raw} week${c.raw === 1 ? "" : "s"}`},
+        },
+      },
+      scales: {
+        x: {ticks: {color: t.muted, font: {size: 9}}, grid: {display: false}, border: {display: false}},
+        y: {ticks: {color: t.muted, font: {size: 9}, stepSize: 1}, grid: {color: t.grid}, border: {display: false}},
+      },
+    },
+  });
+}
+
+// =================== CARD FOCUS / MAXIMIZE ===================
+function attachCardFocus() {
+  document.querySelectorAll(".card").forEach(card => {
+    if (card._focusAttached) return;
+    card._focusAttached = true;
+    // Add focus button to header if it has one
+    const header = card.querySelector(".card-header");
+    if (header && !header.querySelector(".card-focus-btn")) {
+      const btn = document.createElement("button");
+      btn.className = "card-focus-btn";
+      btn.innerHTML = "⤢";
+      btn.title = "Focus mode";
+      btn.onclick = (e) => { e.stopPropagation(); toggleCardFocus(card); };
+      // Add to header (after card-header-text)
+      header.appendChild(btn);
+    }
+  });
+}
+function toggleCardFocus(card) {
+  const isFocused = card.classList.contains("card-focused");
+  document.querySelectorAll(".card-focused").forEach(c => c.classList.remove("card-focused"));
+  if (!isFocused) {
+    card.classList.add("card-focused");
+    $("focus-backdrop").classList.add("show");
+    document.body.style.overflow = "hidden";
+    // Re-render charts in card to fit new size
+    setTimeout(() => {
+      Object.values(charts).forEach(ch => { try { ch.resize(); } catch {} });
+    }, 300);
+  } else {
+    closeFocus();
+  }
+}
+function closeFocus() {
+  document.querySelectorAll(".card-focused").forEach(c => c.classList.remove("card-focused"));
+  $("focus-backdrop").classList.remove("show");
+  document.body.style.overflow = "";
+  setTimeout(() => {
+    Object.values(charts).forEach(ch => { try { ch.resize(); } catch {} });
+  }, 200);
+}
+$("focus-backdrop").addEventListener("click", closeFocus);
+// Esc closes focus too
+const _origEscHandler = document.onkeydown;
+document.addEventListener("keydown", e => {
+  if (e.key === "Escape" && document.querySelector(".card-focused")) closeFocus();
+});
+
+// =================== PULL-TO-REFRESH (MOBILE) ===================
+let _ptrStartY = null;
+let _ptrThreshold = 80;
+let _ptrTriggered = false;
+const ptrIndicator = $("ptr-indicator");
+const ptrText = $("ptr-text");
+
+document.addEventListener("touchstart", e => {
+  if (window.scrollY <= 5) {
+    _ptrStartY = e.touches[0].clientY;
+    _ptrTriggered = false;
+  }
+}, {passive: true});
+
+document.addEventListener("touchmove", e => {
+  if (_ptrStartY === null) return;
+  const delta = e.touches[0].clientY - _ptrStartY;
+  if (delta > 10 && window.scrollY <= 5) {
+    ptrIndicator.classList.add("show");
+    if (delta >= _ptrThreshold) {
+      ptrIndicator.classList.add("ready");
+      ptrText.textContent = "Release to refresh";
+    } else {
+      ptrIndicator.classList.remove("ready");
+      ptrText.textContent = "Pull to refresh";
+    }
+  }
+}, {passive: true});
+
+document.addEventListener("touchend", e => {
+  if (_ptrStartY === null) return;
+  const delta = (e.changedTouches[0]?.clientY || 0) - _ptrStartY;
+  if (delta >= _ptrThreshold && !_ptrTriggered) {
+    _ptrTriggered = true;
+    ptrText.textContent = "Refreshing…";
+    loadAll(false).then(() => {
+      ptrIndicator.classList.remove("show", "ready");
+    });
+  } else {
+    ptrIndicator.classList.remove("show", "ready");
+  }
+  _ptrStartY = null;
+});
+
+// =================== RIGHT-CLICK CONTEXT MENU ===================
+const ctxMenu = $("context-menu");
+let _ctxSym = null;
+
+function showContextMenu(x, y, sym) {
+  _ctxSym = sym;
+  const items = [
+    {icon: "📊", label: "View details", action: () => showSymModal(sym, _lastState, _lastTrades)},
+    {icon: "📋", label: "Copy symbol", action: () => navigator.clipboard.writeText(sym).then(() => toast(`Copied ${sym}`))},
+    {divider: true},
+    {icon: "↗", label: "Open on Binance", action: () => window.open(`https://www.binance.com/en/futures/${sym}`, "_blank")},
+    {icon: "🔍", label: "Search trades", action: () => { $("trades-search").value = sym; $("trades-search").dispatchEvent(new Event("input")); $("trades-search").scrollIntoView({behavior: "smooth", block: "center"}); }},
+  ];
+  ctxMenu.innerHTML = items.map(it => {
+    if (it.divider) return '<div class="ctx-item divider"></div>';
+    return `<div class="ctx-item" data-act="${it.label}"><span class="ctx-icon">${it.icon}</span>${it.label}</div>`;
+  }).join("");
+  ctxMenu.querySelectorAll(".ctx-item:not(.divider)").forEach((el, idx) => {
+    el.addEventListener("click", () => {
+      hideContextMenu();
+      const it = items.filter(i => !i.divider)[idx];
+      if (it) it.action();
+    });
+  });
+  // Position (avoid edge)
+  const w = 200, h = ctxMenu.offsetHeight || 200;
+  let left = x;
+  let top = y;
+  if (left + w > window.innerWidth - 10) left = window.innerWidth - w - 10;
+  if (top + h > window.innerHeight - 10) top = window.innerHeight - h - 10;
+  ctxMenu.style.left = left + "px";
+  ctxMenu.style.top = top + "px";
+  ctxMenu.classList.add("show");
+}
+function hideContextMenu() {
+  ctxMenu.classList.remove("show");
+  _ctxSym = null;
+}
+
+document.addEventListener("contextmenu", e => {
+  const symEl = e.target.closest("[data-sym]");
+  if (symEl) {
+    e.preventDefault();
+    showContextMenu(e.clientX, e.clientY, symEl.dataset.sym);
+  }
+});
+document.addEventListener("click", e => {
+  if (!ctxMenu.contains(e.target)) hideContextMenu();
+});
+document.addEventListener("scroll", hideContextMenu, {passive: true});
+
+// =================== COMPARE OVERLAY ON EQUITY CHART ===================
+let _compareMode = false;
+$("compare-toggle").addEventListener("click", () => {
+  _compareMode = !_compareMode;
+  $("compare-toggle").classList.toggle("active", _compareMode);
+  if (allComps.length) renderEquityChart(allComps);
+  toast(_compareMode ? "Showing previous period overlay" : "Comparison off");
+});
+
+const _origRenderEquity = renderEquityChart;
+renderEquityChart = function(comps) {
+  if (!_compareMode) { _origRenderEquity(comps); return; }
+  // Build current-period and prior-period data
+  const ctx = $("equity-chart").getContext("2d");
+  if (charts.equity) charts.equity.destroy();
+  const filtered = filterPeriod(comps, currentPeriod);
+  if (!filtered.length) { _origRenderEquity(comps); return; }
+  // Prior-period: same length window, ending where current starts
+  const startIdx = comps.indexOf(filtered[0]);
+  const priorLen = filtered.length;
+  const prior = comps.slice(Math.max(0, startIdx - priorLen), startIdx);
+  if (!prior.length) { _origRenderEquity(comps); return; }
+  // Normalize both to start at 100 for comparison
+  const normCurrent = filtered.map((c, i) => (c.paper_total / filtered[0].paper_total - 1) * 100);
+  const normPrior = prior.map((c, i) => (c.paper_total / prior[0].paper_total - 1) * 100);
+  const labels = filtered.map((_, i) => `t+${i}`);
+  const t = chartTheme();
+  charts.equity = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels,
+      datasets: [
+        {label: "Current", data: normCurrent, borderColor: "#c96442",
+         backgroundColor: "rgba(201,100,66,0.10)", fill: true, tension: 0.35, borderWidth: 2.5, pointRadius: 0},
+        {label: "Previous", data: normPrior, borderColor: t.muted, borderWidth: 1.5, tension: 0.35, pointRadius: 0, borderDash: [4, 4]},
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: {mode: "index", intersect: false},
+      plugins: {
+        legend: {position: "bottom", labels: {boxWidth: 8, boxHeight: 8, padding: 14, color: t.muted, font: {size: 11, weight: "500"}, usePointStyle: true, pointStyle: "circle"}},
+        tooltip: {backgroundColor: t.bg, titleColor: t.text, bodyColor: t.text, borderColor: t.grid, borderWidth: 1, padding: 12, cornerRadius: 8, displayColors: true, boxWidth: 8, boxHeight: 8, usePointStyle: true,
+          callbacks: {label: (ctx) => `  ${ctx.dataset.label}: ${ctx.parsed.y.toFixed(2)}%`}},
+      },
+      scales: {
+        x: {ticks: {color: t.muted, font: {size: 10}, maxTicksLimit: 6, maxRotation: 0}, grid: {display: false}, border: {display: false}},
+        y: {ticks: {color: t.muted, font: {size: 10}, callback: v => (v >= 0 ? "+" : "") + v.toFixed(0) + "%"}, grid: {color: t.grid}, border: {display: false}},
+      },
+    },
+  });
+};
+
+// =================== ACCENT COLOR PICKER (in cmdK) ===================
+const ACCENT_PRESETS = [
+  {name: "Sienna", color: "#c96442"},   // default
+  {name: "Indigo", color: "#6366f1"},
+  {name: "Emerald", color: "#10b981"},
+  {name: "Rose", color: "#f43f5e"},
+  {name: "Amber", color: "#f59e0b"},
+  {name: "Violet", color: "#8b5cf6"},
+];
+const _origCommands = COMMANDS.slice();
+ACCENT_PRESETS.forEach(p => {
+  COMMANDS.push({
+    section: "Personalize",
+    name: `Accent: ${p.name}`,
+    icon: `<span style="display:inline-block;width:14px;height:14px;border-radius:3px;background:${p.color};"></span>`,
+    fn: () => setAccentColor(p.color, p.name),
+  });
+});
+
+function setAccentColor(color, name) {
+  document.documentElement.style.setProperty("--accent", color);
+  // Soft & strong variants — derive
+  document.documentElement.style.setProperty("--accent-soft", hexToRgba(color, 0.13));
+  document.documentElement.style.setProperty("--accent-strong", shadeColor(color, -15));
+  localStorage.setItem("accent", color);
+  if (allComps.length) {
+    renderEquityChart(allComps);
+    renderHeroSparkline(allComps);
+  }
+  toast(`Accent: ${name}`);
+}
+function hexToRgba(hex, alpha) {
+  const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+function shadeColor(hex, percent) {
+  const r = Math.max(0, Math.min(255, parseInt(hex.slice(1,3),16) + percent*2));
+  const g = Math.max(0, Math.min(255, parseInt(hex.slice(3,5),16) + percent*2));
+  const b = Math.max(0, Math.min(255, parseInt(hex.slice(5,7),16) + percent*2));
+  return "#" + [r,g,b].map(x => Math.round(x).toString(16).padStart(2,"0")).join("");
+}
+
+// Restore saved accent
+const savedAccent = localStorage.getItem("accent");
+if (savedAccent) {
+  document.documentElement.style.setProperty("--accent", savedAccent);
+  document.documentElement.style.setProperty("--accent-soft", hexToRgba(savedAccent, 0.13));
+  document.documentElement.style.setProperty("--accent-strong", shadeColor(savedAccent, -15));
+}
+
+// =================== AUGMENT loadAll for new sections ===================
+const _origLoad4 = loadAll;
 loadAll = async function(silent) {
   if (!silent) $("refresh").classList.add("spinning");
   try {
@@ -1326,9 +1686,11 @@ loadAll = async function(silent) {
     renderEquityChart(comps);
     renderUnderwaterChart(comps);
     renderFrictionChart(comps);
+    renderTreemap(state);
+    renderWeeklyHist(comps);
     const lastTs = state.last_check || (comps.length ? comps[comps.length-1].ts : null);
     $("last-updated").innerHTML = `<span id="status-dot" class="status-dot healthy"></span>Updated ${fmt.ago(lastTs)}`;
-    setTimeout(() => { attachSymClicks(); attachHoverPreviews(); }, 50);
+    setTimeout(() => { attachSymClicks(); attachHoverPreviews(); attachCardFocus(); }, 50);
     if (!silent) toast("Refreshed");
   } catch (e) {
     console.error(e);

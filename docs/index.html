@@ -129,6 +129,7 @@
           <button class="period-tab" data-period="720">30d</button>
           <button class="period-tab" data-period="0">All</button>
         </div>
+        <button id="compare-toggle" class="compare-toggle" title="Overlay previous period">vs prev</button>
       </div>
       <div class="chart-wrap"><canvas id="equity-chart"></canvas></div>
     </section>
@@ -231,7 +232,39 @@
       </div>
       <div id="activity-feed" class="activity-feed"></div>
     </section>
+
+    <section class="card">
+      <div class="card-header">
+        <div class="card-header-text">
+          <h2>Capital Allocation</h2>
+          <p class="card-sub">live position sizing by sym</p>
+        </div>
+      </div>
+      <div id="treemap" class="treemap"></div>
+    </section>
+
+    <section class="card">
+      <div class="card-header">
+        <div class="card-header-text">
+          <h2>Weekly Returns</h2>
+          <p class="card-sub">distribution of past weeks</p>
+        </div>
+      </div>
+      <div class="chart-wrap small"><canvas id="weekly-hist"></canvas></div>
+    </section>
   </main>
+
+  <!-- Card focus backdrop -->
+  <div id="focus-backdrop" class="focus-backdrop"></div>
+
+  <!-- Pull-to-refresh indicator (mobile) -->
+  <div id="ptr-indicator" class="ptr-indicator">
+    <span class="ptr-icon">↓</span>
+    <span id="ptr-text">Pull to refresh</span>
+  </div>
+
+  <!-- Right-click context menu -->
+  <div id="context-menu" class="context-menu" role="menu"></div>
 
   <!-- Hover preview popover (sym mini-card) -->
   <div id="sym-preview" class="sym-preview" aria-hidden="true">
