@@ -1,5 +1,5 @@
-// Service worker — offline cache for shell, network-first for data
-const VERSION = "v1";
+// Service worker — network-first for shell (fresh code), cache fallback offline
+const VERSION = "v6-2026-04-28";  // bump on each deploy to invalidate stale caches
 const SHELL_CACHE = `v10-shell-${VERSION}`;
 const SHELL_FILES = [
   "./",
@@ -30,20 +30,21 @@ self.addEventListener("activate", (e) => {
 
 self.addEventListener("fetch", (e) => {
   const url = new URL(e.request.url);
-  // For raw.githubusercontent (state data): network-first, no cache
+  // For raw.githubusercontent (state data): network-only, no cache
   if (url.hostname === "raw.githubusercontent.com") {
     e.respondWith(fetch(e.request).catch(() => caches.match(e.request)));
     return;
   }
-  // For shell: cache-first, fall back to network
+  // For shell (HTML/CSS/JS): NETWORK-FIRST so updates appear immediately
+  // Falls back to cache only when offline.
   e.respondWith(
-    caches.match(e.request).then((cached) => cached || fetch(e.request).then((res) => {
-      // Update cache for shell files
-      if (SHELL_FILES.some((f) => e.request.url.endsWith(f.replace("./", "")))) {
+    fetch(e.request).then((res) => {
+      // Update cache with fresh response
+      if (res.ok) {
         const clone = res.clone();
-        caches.open(SHELL_CACHE).then((c) => c.put(e.request, clone));
+        caches.open(SHELL_CACHE).then((c) => c.put(e.request, clone)).catch(() => {});
       }
       return res;
-    }))
+    }).catch(() => caches.match(e.request))
   );
 });
