@@ -76,6 +76,40 @@ function rocCard(state, comps) {
   $("roi-7d").textContent = fmt.pct(r7d);
   $("roi-7d").className = "stat-value " + cls(r7d);
   $("n-pos").textContent = positions.length;
+
+  // Max DD from comparator history
+  let peak = init, maxDD = 0;
+  for (const c of comps) {
+    if (c.paper_total > peak) peak = c.paper_total;
+    const dd = (c.paper_total / peak - 1) * 100;
+    if (dd < maxDD) maxDD = dd;
+  }
+  // Also include current
+  if (total > peak) peak = total;
+  const curDD = (total / peak - 1) * 100;
+  if (curDD < maxDD) maxDD = curDD;
+  $("max-dd").textContent = fmt.pct(maxDD);
+
+  // Regime bar
+  const lev = state.current_lev;
+  const btcVol = (state.btc_vol_cache || {}).vol_ann;
+  let regime = "—";
+  if (btcVol !== undefined) {
+    const v = btcVol * 100;
+    if (v < 40) regime = "🟢 calm";
+    else if (v < 80) regime = "🟡 normal";
+    else regime = "🔴 chaos";
+    $("btc-vol").textContent = v.toFixed(1) + "%";
+  }
+  $("regime-badge").textContent = regime;
+  $("cur-lev").textContent = lev ? lev.toFixed(2) + "x" : "—";
+
+  // Net exposure
+  const netExp = positions.reduce((s, p) => s + p.side * p.size_usd, 0);
+  const netPct = init ? (netExp / init * 100) : 0;
+  const netLabel = netExp >= 0 ? `+${netPct.toFixed(0)}% LONG` : `${netPct.toFixed(0)}% SHORT`;
+  $("net-exp").textContent = positions.length === 0 ? "—" : netLabel;
+  $("net-exp").className = "mono " + (netExp >= 0 ? "gain" : "loss");
 }
 
 function renderTopList(state) {
@@ -163,6 +197,31 @@ function renderTrades(trades) {
     `</tr></thead><tbody>${rows}</tbody></table>`);
 }
 
+function renderAttribution(state) {
+  const attr = state.pnl_attribution || {};
+  const entries = Object.entries(attr).map(([sym, a]) => ({
+    sym, total: a.total_pnl, n: a.n_trades, wins: a.wins, losses: a.losses,
+    wr: a.n_trades ? (a.wins / a.n_trades * 100) : 0,
+  }));
+  entries.sort((a, b) => b.total - a.total);
+  if (!entries.length) {
+    setHTML("attribution-table", '<div class="empty">no closed trades yet</div>');
+    return;
+  }
+  const rows = entries.map(e => `<tr>
+    <td>${e.sym}</td>
+    <td class="right ${cls(e.total)}">${fmt.usd(e.total)}</td>
+    <td class="right">${e.n}</td>
+    <td class="right muted">${e.wins}W / ${e.losses}L</td>
+    <td class="right muted">${e.wr.toFixed(0)}%</td>
+  </tr>`).join("");
+  setHTML("attribution-table",
+    `<table class="tbl"><thead><tr><th>Sym</th><th class="right">Total P&amp;L</th>` +
+    `<th class="right">Trades</th><th class="right">W/L</th><th class="right">WR</th>` +
+    `</tr></thead><tbody>${rows}</tbody></table>`);
+}
+
+
 function renderStats(trades, comps) {
   const cutoff = Date.now() - 7 * 86400 * 1000;
   const closes7d = trades.filter(t => t.event === "close" && new Date(t.ts).getTime() >= cutoff);
@@ -236,6 +295,42 @@ function renderEquityChart(comps) {
   });
 }
 
+function renderUnderwaterChart(comps) {
+  const ctx = document.getElementById("underwater-chart").getContext("2d");
+  if (charts.underwater) charts.underwater.destroy();
+  if (!comps.length) return;
+  // Compute drawdown series
+  let peak = comps[0].paper_total;
+  const dds = comps.map(c => {
+    if (c.paper_total > peak) peak = c.paper_total;
+    return (c.paper_total / peak - 1) * 100;
+  });
+  const isDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+  const grid = isDark ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.05)";
+  const muted = isDark ? "#918d83" : "#8b867d";
+
+  charts.underwater = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels: comps.map(c => fmt.time(c.ts)),
+      datasets: [{
+        label: "Drawdown %", data: dds,
+        borderColor: "#b85450", backgroundColor: "rgba(184,84,80,0.15)",
+        fill: true, tension: 0.3, pointRadius: 0, borderWidth: 1.5,
+      }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {legend: {display: false}, tooltip: {callbacks: {label: c => c.parsed.y.toFixed(2) + "%"}}},
+      scales: {
+        x: {ticks: {color: muted, font: {size: 9}, maxTicksLimit: 4}, grid: {display: false}},
+        y: {max: 0, ticks: {color: muted, font: {size: 9}, callback: v => v.toFixed(0) + "%"}, grid: {color: grid}},
+      },
+    },
+  });
+}
+
+
 function renderFrictionChart(comps) {
   const ctx = document.getElementById("friction-chart").getContext("2d");
   if (charts.friction) charts.friction.destroy();
@@ -278,7 +373,9 @@ async function loadAll() {
     renderPositions(state);
     renderTrades(trades);
     renderStats(trades, comps);
+    renderAttribution(state);
     renderEquityChart(comps);
+    renderUnderwaterChart(comps);
     renderFrictionChart(comps);
     const lastTs = state.last_check || (comps.length ? comps[comps.length-1].ts : null);
     setText("last-updated", "Updated " + fmt.ago(lastTs));

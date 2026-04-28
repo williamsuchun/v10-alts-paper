@@ -43,14 +43,21 @@ UNIVERSE = [
 CFG = dict(
     universe=UNIVERSE,
     initial_capital=10_000.0,
-    leverage=3.0,              # was 6.0; sweep showed lev=3 has best Sharpe
-    funding_thr=0.0003,        # 0.03% per 8h
-    hold_hours=8,              # was 12; sweep: 8h beats 12h consistently (signal decays fast)
-    stop_pct=0.06,             # was 0.10; tighter stop preserves capital
-    lookback_hours=336,        # 14d
-    top_pct=40,                # was 20; more diversification (top 21 of 52) → Sh_w 0.14→0.21
+    leverage=3.0,                  # base leverage; regime-adjusted below
+    leverage_regime=True,          # if True, scale lev by BTC vol
+    leverage_min=1.5,              # in risk-off regime
+    leverage_max=4.0,              # in calm regime
+    funding_thr=0.0003,            # global FALLBACK; per-coin auto thr below takes over after warmup
+    funding_thr_quantile=0.85,
+    funding_thr_history_h=720,
+    funding_thr_min=0.0001,
+    funding_thr_max=0.002,
+    hold_hours=8,
+    stop_pct=0.06,
+    lookback_hours=336,
+    top_pct=40,
     fee=0.0005,
-    slippage=0.0003,
+    slippage=0.0008,
 )
 
 REPO = Path(__file__).parent
@@ -99,6 +106,12 @@ def log_event(event):
     event["ts"] = datetime.now(timezone.utc).isoformat()
     with TRADES_LOG.open("a") as f:
         f.write(json.dumps(event, default=str) + "\n")
+    # Trim to last 5000 events (~6mo at typical rate); cheap occasional rewrite
+    try:
+        lines = TRADES_LOG.read_text().split("\n")
+        if len(lines) > 5100:
+            TRADES_LOG.write_text("\n".join(lines[-5000:]))
+    except Exception: pass
 
 
 # ============== Live data ==============
@@ -106,31 +119,82 @@ def to_ccxt(s):
     return f"{s[:-4]}/USDT:USDT" if s.endswith("USDT") else s
 
 
+def _retry(fn, retries=3, delay=2):
+    """Run fn() with retries on exception. Returns result or None."""
+    import time as _t
+    for i in range(retries):
+        try:
+            return fn()
+        except Exception as e:
+            if i == retries - 1:
+                print(f"  [retry final fail] {e}")
+                return None
+            wait = delay * (2 ** i)  # exponential backoff: 2, 4, 8s
+            print(f"  [retry {i+1}/{retries}] err: {e}, wait {wait}s")
+            _t.sleep(wait)
+
+
 def fetch_latest_close(syms):
+    """Batch fetch all tickers with retry, fallback per-sym on partial failure."""
     out = {}
-    try:
-        tickers = EXCHANGE.fetch_tickers([to_ccxt(s) for s in syms])
+    tickers = _retry(lambda: EXCHANGE.fetch_tickers([to_ccxt(s) for s in syms]))
+    if tickers:
         for s in syms:
             t = tickers.get(to_ccxt(s)) or {}
             if t.get("close"): out[s] = float(t["close"])
-    except Exception as e:
-        print(f"  [tickers err] {e}, fallback per-sym")
-        for s in syms:
-            try:
-                t = EXCHANGE.fetch_ticker(to_ccxt(s))
-                out[s] = float(t["close"])
-            except Exception: pass
+    # Per-sym fallback for missing
+    missing = [s for s in syms if s not in out]
+    for s in missing[:5]:  # limit retries to avoid stalling
+        t = _retry(lambda s=s: EXCHANGE.fetch_ticker(to_ccxt(s)), retries=2)
+        if t and t.get("close"): out[s] = float(t["close"])
     return out
 
 
 def fetch_latest_funding(syms):
     out = {}
     for s in syms:
-        try:
-            r = EXCHANGE.fetch_funding_rate(to_ccxt(s))
-            out[s] = float(r["fundingRate"])
-        except Exception: pass
+        r = _retry(lambda s=s: EXCHANGE.fetch_funding_rate(to_ccxt(s)), retries=2)
+        if r: out[s] = float(r["fundingRate"])
     return out
+
+
+def fetch_btc_vol(state):
+    """Compute BTC 14d annualized realized vol from kline data, cached for 1h."""
+    cache = state.get("btc_vol_cache", {})
+    now = datetime.now(timezone.utc)
+    cached_ts = cache.get("ts")
+    if cached_ts:
+        age_min = (now - datetime.fromisoformat(cached_ts)).total_seconds() / 60
+        if age_min < 60:
+            return cache.get("vol_ann", 0.5)
+    # Fetch 14d × 24h = 336 hourly bars
+    bars = _retry(lambda: EXCHANGE.fetch_ohlcv("BTC/USDT:USDT", "1h", limit=336), retries=2)
+    if not bars or len(bars) < 100:
+        return cache.get("vol_ann", 0.5)
+    closes = [b[4] for b in bars]
+    rets = [(closes[i] / closes[i-1] - 1) for i in range(1, len(closes))]
+    if not rets: return 0.5
+    mean = sum(rets) / len(rets)
+    var = sum((r - mean)**2 for r in rets) / len(rets)
+    sd = var ** 0.5
+    vol_ann = sd * (8760 ** 0.5)  # hourly std → annualized
+    state["btc_vol_cache"] = {"ts": now.isoformat(), "vol_ann": vol_ann}
+    return vol_ann
+
+
+def regime_leverage(btc_vol_ann):
+    """Scale leverage by BTC vol regime.
+    vol < 40% (calm)  → max lev (4.0)
+    vol > 80% (chaos) → min lev (1.5)
+    linear in between."""
+    if not CFG.get("leverage_regime"):
+        return CFG["leverage"]
+    lo_vol, hi_vol = 0.40, 0.80
+    lo_lev, hi_lev = CFG["leverage_max"], CFG["leverage_min"]
+    if btc_vol_ann <= lo_vol: return lo_lev
+    if btc_vol_ann >= hi_vol: return hi_lev
+    frac = (btc_vol_ann - lo_vol) / (hi_vol - lo_vol)
+    return lo_lev - (lo_lev - hi_lev) * frac
 
 
 def is_funding_hour(t):
@@ -138,18 +202,46 @@ def is_funding_hour(t):
 
 
 # ============== Strategy ==============
+def per_coin_thr(state, sym):
+    """Per-coin funding threshold = max(min_thr, p85 of recent |funding|).
+    Falls back to global thr until enough history."""
+    state.setdefault("funding_history", {})
+    hist = state["funding_history"].get(sym, [])
+    min_n = 30  # need ≥30 funding events for stable quantile (≈10d at 3/day)
+    if len(hist) < min_n:
+        return CFG["funding_thr"]
+    # Use only last N events
+    n_keep = CFG["funding_thr_history_h"] // 8  # funding events per window
+    recent = hist[-n_keep:]
+    abs_vals = sorted(abs(f) for f in recent)
+    q_idx = int(len(abs_vals) * CFG["funding_thr_quantile"])
+    thr = abs_vals[min(q_idx, len(abs_vals) - 1)]
+    return max(CFG["funding_thr_min"], min(CFG["funding_thr_max"], thr))
+
+
 def update_shadow(state, prices, fundings):
     """Update shadow simulation for ALL universe (whether or not real position)."""
     lookback = CFG["lookback_hours"]
-    lev = CFG["leverage"]
+    lev = state.get("current_lev", CFG["leverage"])  # regime-adjusted
     now = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
     funding_event = is_funding_hour(now)
+    state.setdefault("funding_history", {})
 
     for sym in CFG["universe"]:
         cur_close = prices.get(sym)
         prev_close = state["last_prices"].get(sym)
         cur_funding = fundings.get(sym, state["last_funding"].get(sym))
         sh = state["shadow_pnl"].setdefault(sym, {"pos": 0, "bars_held": 0, "entry": None, "rets": []})
+
+        # Track funding history (only on funding events to avoid duplicates)
+        if funding_event and cur_funding is not None:
+            fh = state["funding_history"].setdefault(sym, [])
+            fh.append(float(cur_funding))
+            max_n = (CFG["funding_thr_history_h"] // 8) * 2  # buffer
+            if len(fh) > max_n:
+                state["funding_history"][sym] = fh[-max_n:]
+
+        thr = per_coin_thr(state, sym)
 
         # close shadow position if stop/expiry
         if sh["pos"] != 0 and cur_close is not None and sh["entry"]:
@@ -159,11 +251,11 @@ def update_shadow(state, prices, fundings):
 
         prev_pos = sh["pos"]
 
-        # generate new shadow signal if flat
+        # generate new shadow signal if flat (per-coin threshold)
         if sh["pos"] == 0 and cur_funding is not None:
             sig = 0
-            if cur_funding > CFG["funding_thr"]: sig = -1
-            elif cur_funding < -CFG["funding_thr"]: sig = 1
+            if cur_funding > thr: sig = -1
+            elif cur_funding < -thr: sig = 1
             if sig != 0 and cur_close:
                 sh["pos"] = sig; sh["bars_held"] = 0; sh["entry"] = cur_close
 
@@ -233,6 +325,13 @@ def manage_real_positions(state, prices, fundings):
                 "size_usd": size_usd, "held_h": round(held_h, 2),
                 "pnl_usd": round(realized, 2), "reason": exit_reason,
             })
+            # Persistent per-sym P&L attribution (rolling totals)
+            attr = state.setdefault("pnl_attribution", {})
+            sym_attr = attr.setdefault(sym, {"total_pnl": 0, "n_trades": 0, "wins": 0, "losses": 0})
+            sym_attr["total_pnl"] = round(sym_attr["total_pnl"] + realized, 2)
+            sym_attr["n_trades"] += 1
+            if realized > 0: sym_attr["wins"] += 1
+            else: sym_attr["losses"] += 1
             notify.send(notify.close_msg(sym, side, entry, cur_close, realized, held_h, exit_reason, "PAPER"))
             closed.append(sym)
         else:
@@ -245,6 +344,7 @@ def manage_real_positions(state, prices, fundings):
 
 def open_new_positions(state, prices, fundings, top_syms):
     cap = state["equity"]
+    lev = state.get("current_lev", CFG["leverage"])
     held_syms = {p["sym"] for p in state["positions"]}
     n_target = max(3, int(len(CFG["universe"]) * CFG["top_pct"] / 100))
     available_slots = n_target - len(state["positions"])
@@ -257,11 +357,12 @@ def open_new_positions(state, prices, fundings, top_syms):
         if sym in held_syms: continue
         f = fundings.get(sym, state["last_funding"].get(sym))
         if f is None: continue
-        side = -1 if f > CFG["funding_thr"] else (1 if f < -CFG["funding_thr"] else 0)
+        thr = per_coin_thr(state, sym)
+        side = -1 if f > thr else (1 if f < -thr else 0)
         if side == 0: continue
         cur_close = prices.get(sym)
         if cur_close is None: continue
-        size_usd = alloc_per_pos_usd * CFG["leverage"]
+        size_usd = alloc_per_pos_usd * lev   # regime-adjusted leverage
         cap -= size_usd * (CFG["fee"] + CFG["slippage"])
         state["positions"].append({
             "sym": sym, "side": side, "entry_price": cur_close,
@@ -285,6 +386,12 @@ def run_once(state, dry=False):
     print(f"  prices: {len(prices)}/{len(syms)}")
     fundings = fetch_latest_funding(syms)
     print(f"  funding: {len(fundings)}/{len(syms)}")
+
+    # Regime-aware leverage
+    btc_vol = fetch_btc_vol(state)
+    lev = regime_leverage(btc_vol)
+    state["current_lev"] = lev
+    print(f"  regime: BTC vol_ann={btc_vol*100:.1f}%  → lev={lev:.2f}x")
 
     closed = manage_real_positions(state, prices, fundings)
     if closed: print(f"  closed: {closed}")

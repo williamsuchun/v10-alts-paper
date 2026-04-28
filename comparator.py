@@ -92,7 +92,18 @@ def append_snapshot(state, n_top=10):
     COMP_LOG.parent.mkdir(parents=True, exist_ok=True)
     with COMP_LOG.open("a") as f:
         f.write(json.dumps(snapshot) + "\n")
+    # Trim to last 90d (2160 entries) to keep file small
+    _trim_jsonl(COMP_LOG, max_lines=2160)
     return snapshot
+
+
+def _trim_jsonl(path, max_lines):
+    """Keep only last max_lines lines of a jsonl file."""
+    if not path.exists(): return
+    lines = path.read_text().split("\n")
+    if len(lines) <= max_lines + 100: return  # 100-line buffer to avoid frequent rewrites
+    keep = "\n".join(lines[-max_lines:])
+    path.write_text(keep)
 
 
 def load_history(days=7):

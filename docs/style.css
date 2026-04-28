@@ -155,6 +155,40 @@ header {
 .gain-bg { background: var(--gain-soft); color: var(--gain); }
 .loss-bg { background: var(--loss-soft); color: var(--loss); }
 
+/* Regime bar */
+.regime-bar {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 24px;
+  margin-bottom: 24px;
+  box-shadow: var(--shadow);
+}
+.regime-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+}
+.regime-item .muted {
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 10px;
+}
+.regime-item .mono {
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.regime-item .badge {
+  align-self: flex-start;
+  margin-top: 2px;
+}
+
 /* Grid layout */
 .grid {
   display: grid;

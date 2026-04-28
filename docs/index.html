@@ -53,9 +53,32 @@
         <div class="stat-value" id="roi-7d">—</div>
       </div>
       <div class="stat">
+        <div class="stat-label">Max DD</div>
+        <div class="stat-value loss" id="max-dd">—</div>
+      </div>
+      <div class="stat">
         <div class="stat-label">Positions</div>
         <div class="stat-value" id="n-pos">—</div>
       </div>
+    </div>
+  </section>
+
+  <section class="regime-bar">
+    <div class="regime-item">
+      <span class="muted">Regime</span>
+      <span id="regime-badge" class="badge">—</span>
+    </div>
+    <div class="regime-item">
+      <span class="muted">BTC vol (ann)</span>
+      <span id="btc-vol" class="mono">—</span>
+    </div>
+    <div class="regime-item">
+      <span class="muted">Current Lev</span>
+      <span id="cur-lev" class="mono">—</span>
+    </div>
+    <div class="regime-item">
+      <span class="muted">Net Exposure</span>
+      <span id="net-exp" class="mono">—</span>
     </div>
   </section>
 
@@ -83,6 +106,12 @@
     </section>
 
     <section class="card">
+      <h2>Underwater</h2>
+      <p class="card-sub">distance from peak equity</p>
+      <div class="chart-wrap small"><canvas id="underwater-chart"></canvas></div>
+    </section>
+
+    <section class="card">
       <h2>Friction Trend</h2>
       <p class="card-sub">paper vs shadow %</p>
       <div class="chart-wrap small"><canvas id="friction-chart"></canvas></div>
@@ -91,6 +120,12 @@
     <section class="card">
       <h2>Stats (7d)</h2>
       <div id="stats-grid" class="stats-grid"></div>
+    </section>
+
+    <section class="card span-2">
+      <h2>Per-Symbol Attribution</h2>
+      <p class="card-sub">cumulative P&amp;L per coin (all-time)</p>
+      <div id="attribution-table"></div>
     </section>
   </main>
 
