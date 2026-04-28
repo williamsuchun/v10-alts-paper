@@ -23,6 +23,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js" defer></script>
 </head>
 <body>
 <div class="app">
@@ -322,6 +323,16 @@
   </footer>
 
   <div id="toast" class="toast"></div>
+
+  <!-- Achievement notification -->
+  <div id="achievement" class="achievement" aria-hidden="true">
+    <div class="achievement-icon" id="achievement-icon">🏆</div>
+    <div class="achievement-text">
+      <div class="achievement-label">Achievement unlocked</div>
+      <div class="achievement-name" id="achievement-name">—</div>
+      <div class="achievement-desc" id="achievement-desc">—</div>
+    </div>
+  </div>
 
   <!-- Sym detail modal -->
   <div id="modal-backdrop" class="modal-backdrop" aria-hidden="true">

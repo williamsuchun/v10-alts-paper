@@ -2134,6 +2134,244 @@ renderTrades = function(trades) {
   if (!events.length) setHTML("trades-table", '<div class="empty no-trades">no trades yet<br><span style="font-size:10px;color:var(--text-faint);">first signal could fire any cycle</span></div>');
 };
 
+// =================== ACHIEVEMENT BADGES ===================
+const ACHIEVEMENTS = [
+  {id: "first_trade", icon: "🎬", name: "First trade", desc: "Opened your first paper position", check: (s, t) => t.filter(x => x.event === "open").length >= 1},
+  {id: "first_close", icon: "✅", name: "Round trip", desc: "Completed your first close", check: (s, t) => t.filter(x => x.event === "close").length >= 1},
+  {id: "first_win", icon: "💰", name: "First win", desc: "First profitable closed trade", check: (s, t) => t.some(x => x.event === "close" && (x.pnl_usd || 0) > 0)},
+  {id: "ten_trades", icon: "🔟", name: "Ten trades", desc: "Closed 10 trades", check: (s, t) => t.filter(x => x.event === "close").length >= 10},
+  {id: "fifty_trades", icon: "5️⃣0️⃣", name: "Fifty trades", desc: "Closed 50 trades", check: (s, t) => t.filter(x => x.event === "close").length >= 50},
+  {id: "hundred_trades", icon: "💯", name: "Century", desc: "Closed 100 trades", check: (s, t) => t.filter(x => x.event === "close").length >= 100},
+  {id: "winning_streak_3", icon: "🔥", name: "Hot 3", desc: "3 winning trades in a row", check: (s, t) => maxWinStreak(t) >= 3},
+  {id: "winning_streak_5", icon: "🔥🔥", name: "On fire", desc: "5 winning trades in a row", check: (s, t) => maxWinStreak(t) >= 5},
+  {id: "5pct_day", icon: "🚀", name: "+5% day", desc: "24h ROI exceeded +5%", check: (s, t, c) => max24hRoi(c) > 5},
+  {id: "10pct_week", icon: "🌟", name: "+10% week", desc: "7-day ROI exceeded +10%", check: (s, t, c) => max7dRoi(c) > 10},
+  {id: "survived_drawdown", icon: "🛡", name: "Drawdown survivor", desc: "Recovered from -10% DD", check: (s, t, c) => maxDDRecovery(c) >= 10},
+  {id: "diversified", icon: "🎯", name: "Diversified", desc: "Held 10+ positions simultaneously", check: (s) => (s.positions || []).length >= 10},
+  {id: "big_winner", icon: "🏆", name: "Big winner", desc: "Single trade P&L > $500", check: (s, t) => t.some(x => x.event === "close" && (x.pnl_usd || 0) > 500)},
+  {id: "two_weeks", icon: "📅", name: "Two weeks live", desc: "Paper trader running 14 days", check: (s, t, c) => c.length > 0 && (Date.now() - new Date(c[0].ts).getTime()) > 14 * 86400 * 1000},
+];
+
+function maxWinStreak(trades) {
+  const closes = trades.filter(t => t.event === "close");
+  let cur = 0, max = 0;
+  for (const c of closes) { if ((c.pnl_usd || 0) > 0) { cur++; if (cur > max) max = cur; } else cur = 0; }
+  return max;
+}
+function max24hRoi(comps) {
+  if (comps.length < 2) return 0;
+  let max = 0;
+  for (let i = 0; i < comps.length; i++) {
+    const t = new Date(comps[i].ts).getTime();
+    const past = comps.find(c => new Date(c.ts).getTime() >= t - 86400000);
+    if (!past) continue;
+    const r = (comps[i].paper_total / past.paper_total - 1) * 100;
+    if (r > max) max = r;
+  }
+  return max;
+}
+function max7dRoi(comps) {
+  if (comps.length < 2) return 0;
+  let max = 0;
+  for (let i = 0; i < comps.length; i++) {
+    const t = new Date(comps[i].ts).getTime();
+    const past = comps.find(c => new Date(c.ts).getTime() >= t - 7*86400000);
+    if (!past) continue;
+    const r = (comps[i].paper_total / past.paper_total - 1) * 100;
+    if (r > max) max = r;
+  }
+  return max;
+}
+function maxDDRecovery(comps) {
+  if (comps.length < 2) return 0;
+  let peak = comps[0].paper_total, maxDD = 0, recovered = 0;
+  for (const c of comps) {
+    if (c.paper_total > peak) {
+      peak = c.paper_total;
+      if (maxDD > recovered) recovered = maxDD;
+      maxDD = 0;
+    }
+    const dd = (1 - c.paper_total / peak) * 100;
+    if (dd > maxDD) maxDD = dd;
+  }
+  return recovered;
+}
+
+let _achievementQueue = [];
+let _achievementShowing = false;
+
+function checkAchievements(state, trades, comps) {
+  const unlocked = JSON.parse(localStorage.getItem("achievements-unlocked") || "[]");
+  for (const a of ACHIEVEMENTS) {
+    if (unlocked.includes(a.id)) continue;
+    try {
+      if (a.check(state, trades, comps)) {
+        unlocked.push(a.id);
+        _achievementQueue.push(a);
+      }
+    } catch (e) { console.warn("achievement check err:", a.id, e); }
+  }
+  localStorage.setItem("achievements-unlocked", JSON.stringify(unlocked));
+  showNextAchievement();
+}
+
+function showNextAchievement() {
+  if (_achievementShowing || !_achievementQueue.length) return;
+  _achievementShowing = true;
+  const a = _achievementQueue.shift();
+  $("achievement-icon").textContent = a.icon;
+  $("achievement-name").textContent = a.name;
+  $("achievement-desc").textContent = a.desc;
+  $("achievement").classList.add("show");
+  $("achievement").setAttribute("aria-hidden", "false");
+  setTimeout(() => {
+    $("achievement").classList.remove("show");
+    $("achievement").setAttribute("aria-hidden", "true");
+    _achievementShowing = false;
+    setTimeout(showNextAchievement, 500);
+  }, 5000);
+}
+
+// Click achievement to dismiss
+$("achievement").addEventListener("click", () => {
+  $("achievement").classList.remove("show");
+  $("achievement").setAttribute("aria-hidden", "true");
+  _achievementShowing = false;
+  setTimeout(showNextAchievement, 300);
+});
+
+// =================== PNG SNAPSHOT EXPORT ===================
+async function exportPNG(targetEl, filename) {
+  if (!window.html2canvas) {
+    toast("Loading export library…");
+    await new Promise(r => {
+      const check = setInterval(() => {
+        if (window.html2canvas) { clearInterval(check); r(); }
+      }, 100);
+    });
+  }
+  toast("Capturing snapshot…");
+  try {
+    const isDark = document.documentElement.dataset.theme === "dark" ||
+                   (!document.documentElement.dataset.theme && window.matchMedia("(prefers-color-scheme: dark)").matches);
+    const canvas = await html2canvas(targetEl, {
+      backgroundColor: isDark ? "#1a1916" : "#fbfaf7",
+      scale: 2,
+      useCORS: true,
+      logging: false,
+    });
+    canvas.toBlob(blob => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast("Snapshot saved");
+    });
+  } catch (e) {
+    console.error(e);
+    toast("Export failed: " + e.message);
+  }
+}
+
+// =================== CSV EXPORT ===================
+function exportTradesCSV(trades) {
+  const closes = trades.filter(t => t.event === "close" || t.event === "open");
+  if (!closes.length) { toast("No trades to export"); return; }
+  const headers = ["ts", "event", "sym", "side", "entry_price", "exit_price", "size_usd", "pnl_usd", "held_h", "reason", "funding"];
+  const rows = closes.map(t => headers.map(h => {
+    const v = t[h];
+    if (v === undefined || v === null) return "";
+    if (typeof v === "string" && v.includes(",")) return `"${v}"`;
+    return v;
+  }).join(","));
+  const csv = headers.join(",") + "\n" + rows.join("\n");
+  const blob = new Blob([csv], {type: "text/csv"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `paper-trades-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
+  toast(`Exported ${closes.length} trades`);
+}
+
+// Add export commands to cmdK
+COMMANDS.push(
+  {section: "Export", name: "Save dashboard snapshot (PNG)", icon: "📷",
+    fn: () => exportPNG(document.querySelector(".app"), `dashboard-${new Date().toISOString().slice(0, 10)}.png`)},
+  {section: "Export", name: "Export trades as CSV", icon: "📥",
+    fn: () => exportTradesCSV(_lastTrades || [])},
+);
+
+// =================== DRAG-TO-REORDER CARDS ===================
+function attachCardDrag() {
+  const grid = document.querySelector(".grid");
+  if (!grid) return;
+  // Restore saved order
+  const savedOrder = JSON.parse(localStorage.getItem("card-order") || "[]");
+  if (savedOrder.length) {
+    const cards = Array.from(grid.children);
+    const cardsById = {};
+    cards.forEach(c => {
+      const id = c.querySelector("h2")?.textContent || c.id;
+      cardsById[id] = c;
+    });
+    savedOrder.forEach(id => {
+      if (cardsById[id]) grid.appendChild(cardsById[id]);
+    });
+  }
+  // Make all cards draggable via header drag
+  Array.from(grid.children).forEach(card => {
+    if (card._dragAttached) return;
+    card._dragAttached = true;
+    card.classList.add("draggable");
+    card.draggable = true;
+    // Add visual drag handle
+    const header = card.querySelector(".card-header");
+    if (header && !header.querySelector(".drag-handle")) {
+      const handle = document.createElement("span");
+      handle.className = "drag-handle";
+      handle.textContent = "⋮⋮";
+      handle.title = "Drag to reorder";
+      header.style.position = "relative";
+      header.insertBefore(handle, header.firstChild);
+    }
+    card.addEventListener("dragstart", e => {
+      // Only drag if started from header
+      const target = e.target;
+      if (!target.closest(".card-header")) { e.preventDefault(); return; }
+      card.classList.add("dragging");
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.setData("text/plain", "");
+    });
+    card.addEventListener("dragend", () => {
+      card.classList.remove("dragging");
+      grid.querySelectorAll(".drag-over").forEach(c => c.classList.remove("drag-over"));
+      saveCardOrder();
+    });
+    card.addEventListener("dragover", e => {
+      e.preventDefault();
+      const dragging = grid.querySelector(".dragging");
+      if (!dragging || dragging === card) return;
+      card.classList.add("drag-over");
+      const rect = card.getBoundingClientRect();
+      const before = e.clientY < rect.top + rect.height / 2;
+      if (before) grid.insertBefore(dragging, card);
+      else grid.insertBefore(dragging, card.nextSibling);
+    });
+    card.addEventListener("dragleave", () => card.classList.remove("drag-over"));
+  });
+}
+function saveCardOrder() {
+  const grid = document.querySelector(".grid");
+  if (!grid) return;
+  const order = Array.from(grid.children).map(c => c.querySelector("h2")?.textContent || c.id).filter(Boolean);
+  localStorage.setItem("card-order", JSON.stringify(order));
+  toast("Layout saved");
+}
+
 // =================== AUGMENT loadAll for new sections ===================
 const _origLoad4 = loadAll;
 loadAll = async function(silent) {
@@ -2169,8 +2407,10 @@ loadAll = async function(silent) {
       attachHoverPreviews();
       attachCardFocus();
       attachCardCollapse();
+      attachCardDrag();
       buildScrollSpy();
     }, 50);
+    checkAchievements(state, trades, comps);
     if (!silent) toast("Refreshed");
   } catch (e) {
     console.error(e);

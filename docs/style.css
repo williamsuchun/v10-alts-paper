@@ -1506,6 +1506,113 @@ body::before {
   color: var(--text-muted);
 }
 
+/* ========== Achievements (milestone notifications) ========== */
+.achievement {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
+  z-index: 220;
+  min-width: 280px;
+  max-width: 360px;
+  opacity: 0;
+  transform: translateY(20px) scale(0.95);
+  transition: all 0.4s var(--ease-out);
+  pointer-events: none;
+  border-left: 3px solid var(--accent);
+}
+.achievement.show {
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  pointer-events: auto;
+}
+.achievement-icon {
+  font-size: 32px;
+  width: 44px;
+  height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent-soft);
+  border-radius: 12px;
+  flex-shrink: 0;
+}
+.achievement-text { flex: 1; min-width: 0; }
+.achievement-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+.achievement-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  margin-top: 2px;
+}
+.achievement-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+@media (max-width: 700px) {
+  .achievement { left: 16px; right: 16px; bottom: 16px; min-width: 0; }
+}
+
+/* ========== Drag-to-reorder cards ========== */
+.card.draggable { user-select: none; }
+.card.draggable .card-header {
+  cursor: grab;
+}
+.card.draggable .card-header:active {
+  cursor: grabbing;
+}
+.card.dragging {
+  opacity: 0.4;
+  transform: scale(0.97);
+}
+.card.drag-over {
+  outline: 2px dashed var(--accent);
+  outline-offset: 4px;
+}
+.drag-handle {
+  display: none;
+  position: absolute;
+  left: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-faint);
+  font-size: 12px;
+  cursor: grab;
+  user-select: none;
+  letter-spacing: -2px;
+}
+.card:hover .drag-handle { display: block; }
+.card:hover .card-header { padding-left: 18px; }
+
+/* ========== Export menu ========== */
+.export-menu {
+  position: fixed;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 6px;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
+  z-index: 250;
+  min-width: 200px;
+  display: none;
+  animation: fadeIn 0.12s var(--ease);
+}
+.export-menu.show { display: block; }
+
 /* ========== Onboarding tour ========== */
 .tour-backdrop {
   position: fixed;
