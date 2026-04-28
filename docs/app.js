@@ -986,9 +986,9 @@ function countUp(el, end, duration = 800, formatter = (n) => n.toFixed(2)) {
 
 // First-load count-up for hero equity
 let _heroAnimated = false;
-const _origRenderHero = renderHero;
+const _origRenderHero3 = renderHero;
 renderHero = function(state, comps) {
-  _origRenderHero(state, comps);
+  _origRenderHero3(state, comps);
   if (!_heroAnimated) {
     const init = state.initial_capital || 10000;
     const cash = state.equity || init;
