@@ -16,7 +16,7 @@ from pathlib import Path
 
 import ccxt
 
-from paper_trader import UNIVERSE, CFG, is_funding_hour, to_ccxt
+from paper_trader import UNIVERSE, CFG, is_funding_hour, to_ccxt, per_coin_thr, regime_leverage
 from simulate import fetch_klines, fetch_funding_history
 
 REPO = Path(__file__).parent
@@ -68,8 +68,25 @@ def panels_to_aligned(panels, end_dt, n_hours):
     return syms_data, timeline
 
 
-def run_window(panels, end_dt, warmup_h, sim_h):
-    """Run replay for one window ending at end_dt. Returns stats dict."""
+def _btc_vol_at(btc_panel, end_dt, lookback_h=336):
+    """Compute BTC realized vol annualized from a 336h window ending at end_dt."""
+    if not btc_panel: return 0.5
+    closes = []
+    for i in range(lookback_h):
+        t = end_dt - timedelta(hours=lookback_h - 1 - i)
+        c = btc_panel["close"].get(t)
+        if c: closes.append(c)
+    if len(closes) < 50: return 0.5
+    rets = [(closes[i]/closes[i-1] - 1) for i in range(1, len(closes))]
+    if not rets: return 0.5
+    mean = sum(rets) / len(rets)
+    var = sum((r - mean)**2 for r in rets) / len(rets)
+    return (var ** 0.5) * (8760 ** 0.5)
+
+
+def run_window(panels, end_dt, warmup_h, sim_h, btc_panel=None):
+    """Run replay for one window ending at end_dt. Returns stats dict.
+    Uses per-coin thr + regime-aware lev from current CFG."""
     total_h = warmup_h + sim_h
     syms_data, timeline = panels_to_aligned(panels, end_dt, total_h)
     if len(syms_data) < 30:
@@ -78,9 +95,15 @@ def run_window(panels, end_dt, warmup_h, sim_h):
     state = {
         "initial_capital": CFG["initial_capital"], "equity": CFG["initial_capital"],
         "positions": [], "shadow_pnl": {}, "last_prices": {}, "last_funding": {},
+        "funding_history": {},
     }
     n_opens = 0; n_closes = 0
-    closes = []  # list of close events for stats
+    closes = []
+
+    # Compute regime lev from BTC vol at trade-start (end of warmup)
+    trade_start_dt = timeline[warmup_h] if warmup_h < len(timeline) else end_dt
+    btc_vol = _btc_vol_at(btc_panel, trade_start_dt)
+    lev = regime_leverage(btc_vol)
 
     for ti, t_dt in enumerate(timeline):
         warming = ti < warmup_h
@@ -116,19 +139,26 @@ def run_window(panels, end_dt, warmup_h, sim_h):
                     new_pos.append(p)
             state["positions"] = new_pos
 
-        # update shadow
-        lookback = CFG["lookback_hours"]; lev = CFG["leverage"]
+        # update shadow + funding history
+        lookback = CFG["lookback_hours"]
         for sym in syms_data:
             cur_close = prices.get(sym); prev_close = state["last_prices"].get(sym)
             cur_f = fundings.get(sym, state["last_funding"].get(sym))
             sh = state["shadow_pnl"].setdefault(sym, {"pos": 0, "bars_held": 0, "entry": None, "rets": []})
+            # Track funding history for per-coin thr
+            if funding_event and cur_f is not None:
+                fh = state["funding_history"].setdefault(sym, [])
+                fh.append(float(cur_f))
+                max_n = (CFG["funding_thr_history_h"] // 8) * 2
+                if len(fh) > max_n: state["funding_history"][sym] = fh[-max_n:]
+            thr = per_coin_thr(state, sym)
             if sh["pos"] != 0 and cur_close and sh["entry"]:
                 ret_e = (cur_close / sh["entry"] - 1) * sh["pos"]
                 if ret_e <= -CFG["stop_pct"] or sh["bars_held"] >= CFG["hold_hours"]:
                     sh["pos"] = 0; sh["bars_held"] = 0; sh["entry"] = None
             prev_pos = sh["pos"]
             if sh["pos"] == 0 and cur_f is not None:
-                sig = -1 if cur_f > CFG["funding_thr"] else (1 if cur_f < -CFG["funding_thr"] else 0)
+                sig = -1 if cur_f > thr else (1 if cur_f < -thr else 0)
                 if sig != 0 and cur_close:
                     sh["pos"] = sig; sh["bars_held"] = 0; sh["entry"] = cur_close
             if sh["pos"] != 0: sh["bars_held"] += 1
@@ -151,17 +181,18 @@ def run_window(panels, end_dt, warmup_h, sim_h):
         n_top = max(3, int(len(UNIVERSE) * CFG["top_pct"] / 100))
         top = sorted(scores, key=lambda s: -scores[s])[:n_top]
 
-        # open new
+        # open new (per-coin thr)
         if not warming and top:
             held_syms = {p["sym"] for p in state["positions"]}
             slots = n_top - len(state["positions"])
-            alloc = state["equity"] / n_top * CFG["leverage"]
+            alloc = state["equity"] / n_top * lev
             for sym in top:
                 if slots <= 0: break
                 if sym in held_syms: continue
                 f = fundings.get(sym, state["last_funding"].get(sym))
                 if f is None: continue
-                side = -1 if f > CFG["funding_thr"] else (1 if f < -CFG["funding_thr"] else 0)
+                thr = per_coin_thr(state, sym)
+                side = -1 if f > thr else (1 if f < -thr else 0)
                 if side == 0: continue
                 cur = prices.get(sym)
                 if cur is None: continue
@@ -222,14 +253,27 @@ def main():
     print(f"[multi-sim {n_w} × {args.window_days}d, {args.warmup_days}d warmup, fetching {total_h}h]")
 
     panels = build_panels_full(UNIVERSE, total_h)
+    # Also fetch BTC for regime lev
+    print("[fetching BTC for regime detection]")
+    btc_panels = build_panels_full(["BTCUSDT"], total_h)
+    btc_panel_full = None
+    if btc_panels and "BTCUSDT" in btc_panels:
+        kl = btc_panels["BTCUSDT"]["klines"]
+        if kl:
+            btc_panel_full = {"close": {datetime.fromtimestamp(b[0]/1000, tz=timezone.utc).replace(minute=0, second=0, microsecond=0): b[4] for b in kl}}
+
     print(f"\n[running {n_w} rolling windows]")
 
     now_dt = datetime.now(timezone.utc).replace(minute=0, second=0, microsecond=0)
     results = []
     for w in range(n_w):
         end_dt = now_dt - timedelta(hours=w * sim_h)
-        print(f"\n  window {n_w-w}/{n_w}: end={end_dt.isoformat()}")
-        r = run_window(panels, end_dt, warmup_h, sim_h)
+        # BTC vol at trade-start (end of warmup)
+        trade_start = end_dt - timedelta(hours=sim_h)
+        btc_v = _btc_vol_at(btc_panel_full, trade_start) if btc_panel_full else 0.5
+        regime_lev = regime_leverage(btc_v)
+        print(f"\n  window {n_w-w}/{n_w}: end={end_dt.isoformat()}  BTC vol={btc_v*100:.0f}% → lev={regime_lev:.2f}x")
+        r = run_window(panels, end_dt, warmup_h, sim_h, btc_panel=btc_panel_full)
         if r:
             print(f"    ROI {r['roi_pct']:+6.2f}%  WR {r['win_rate_pct']:5.1f}%  PF {r['profit_factor']:.2f}  "
                   f"trades {r['n_closes']:3d}  stops {r['n_stops']:2d}  hold {r['avg_hold_h']:.1f}h")
