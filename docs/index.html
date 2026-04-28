@@ -65,6 +65,10 @@
       <span id="last-updated" class="muted">
         <span id="status-dot" class="status-dot healthy"></span>loading…
       </span>
+      <span id="next-refresh" class="muted next-refresh" title="Next auto-refresh">—</span>
+      <button id="density-toggle" class="ghost-btn icon-btn" title="Toggle density (D)" aria-label="Density">
+        <span class="icon" id="density-icon">⊟</span>
+      </button>
       <button id="cmdk-trigger" class="ghost-btn kbd-hint" title="Command menu (⌘K)">
         <span>⌘K</span>
       </button>
@@ -275,6 +279,20 @@
       <div class="chart-wrap small"><canvas id="health-radar"></canvas></div>
     </section>
   </main>
+
+  <!-- Onboarding tour -->
+  <div id="tour-backdrop" class="tour-backdrop">
+    <div id="tour-spotlight" class="tour-spotlight"></div>
+    <div id="tour-card" class="tour-card">
+      <div class="tour-progress" id="tour-progress"></div>
+      <h3 id="tour-title">Welcome</h3>
+      <p id="tour-body">—</p>
+      <div class="tour-actions">
+        <button id="tour-skip" class="tour-skip">Skip tour</button>
+        <button id="tour-next" class="tour-next">Next →</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Card focus backdrop -->
   <div id="focus-backdrop" class="focus-backdrop"></div>

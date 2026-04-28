@@ -1904,6 +1904,236 @@ renderHero = function(state, comps) {
   setTimeout(() => { _heroTickerEnabled = true; }, 1500);
 };
 
+// =================== ONBOARDING TOUR ===================
+const TOUR_STEPS = [
+  {
+    target: ".hero", title: "Total equity at a glance",
+    body: "Your live equity, ROI, and key 24h/7d/MaxDD stats. Sparkline shows last 7 days.",
+  },
+  {
+    target: ".regime-bar", title: "Market regime",
+    body: "Current BTC volatility regime drives your active leverage. The strategy adapts.",
+  },
+  {
+    target: "#equity-period-tabs", title: "Switch time periods",
+    body: "Toggle between 24h / 7d / 30d / All on the equity curve. Try the 'vs prev' overlay.",
+  },
+  {
+    target: "#cmdk-trigger", title: "Command palette ⌘K",
+    body: "Press ⌘K (Cmd+K on Mac) anytime. Search commands, switch theme, change accent color, jump to any sym.",
+  },
+  {
+    target: "#scroll-spy", title: "Section navigator",
+    body: "Right side dots help jump between sections. Hover to see names, click to scroll.",
+  },
+  {
+    target: ".card[id], .card", title: "Cards: focus & collapse",
+    body: "Hover any card to reveal ⤢ (focus) and ▾ (collapse) buttons. Right-click any sym for actions.",
+  },
+];
+
+let _tourStep = 0;
+function startTour() {
+  _tourStep = 0;
+  $("tour-backdrop").classList.add("active");
+  showTourStep(0);
+}
+function showTourStep(i) {
+  if (i >= TOUR_STEPS.length) { endTour(); return; }
+  _tourStep = i;
+  const step = TOUR_STEPS[i];
+  const el = document.querySelector(step.target);
+  if (!el) { showTourStep(i + 1); return; }
+  // Position spotlight
+  el.scrollIntoView({behavior: "smooth", block: "center"});
+  setTimeout(() => {
+    const r = el.getBoundingClientRect();
+    const sp = $("tour-spotlight");
+    sp.style.left = (r.left - 6) + "px";
+    sp.style.top = (r.top - 6) + "px";
+    sp.style.width = (r.width + 12) + "px";
+    sp.style.height = (r.height + 12) + "px";
+    // Position card near spotlight
+    const card = $("tour-card");
+    let cardLeft = r.left;
+    let cardTop = r.bottom + 16;
+    if (cardTop + 250 > window.innerHeight) cardTop = r.top - 250 - 16;
+    if (cardLeft + 360 > window.innerWidth - 16) cardLeft = window.innerWidth - 360 - 16;
+    if (cardLeft < 16) cardLeft = 16;
+    if (cardTop < 16) cardTop = 16;
+    card.style.left = cardLeft + "px";
+    card.style.top = cardTop + "px";
+    // Update content
+    $("tour-title").textContent = step.title;
+    $("tour-body").textContent = step.body;
+    $("tour-progress").innerHTML = TOUR_STEPS.map((_, j) => `<span class="${j <= i ? 'done' : ''}"></span>`).join("");
+    $("tour-next").textContent = i === TOUR_STEPS.length - 1 ? "Done" : "Next →";
+  }, 350);
+}
+function endTour() {
+  $("tour-backdrop").classList.remove("active");
+  localStorage.setItem("tour-done", "1");
+}
+$("tour-next").addEventListener("click", () => showTourStep(_tourStep + 1));
+$("tour-skip").addEventListener("click", endTour);
+// Auto-start tour for first-time visitors after a brief delay
+if (!localStorage.getItem("tour-done")) {
+  setTimeout(() => {
+    if (_lastState) startTour();
+  }, 1800);
+}
+// Add to cmdk
+COMMANDS.push({
+  section: "Help",
+  name: "Show onboarding tour",
+  icon: "🎓",
+  fn: () => { localStorage.removeItem("tour-done"); startTour(); },
+});
+
+// =================== LIVE COUNTDOWN ===================
+let _lastFetchTs = Date.now();
+function updateCountdown() {
+  const elapsedSec = (Date.now() - _lastFetchTs) / 1000;
+  const remainingSec = Math.max(0, 5 * 60 - elapsedSec);
+  const m = Math.floor(remainingSec / 60);
+  const s = Math.floor(remainingSec % 60);
+  $("next-refresh").textContent = `next ${m}m${s.toString().padStart(2, "0")}s`;
+}
+setInterval(updateCountdown, 1000);
+// Hook into loadAll to reset the timer
+const _origLoadCountdown = loadAll;
+loadAll = async function(silent) {
+  const result = await _origLoadCountdown(silent);
+  _lastFetchTs = Date.now();
+  return result;
+};
+
+// =================== DENSITY TOGGLE ===================
+function toggleDensity() {
+  const cur = document.documentElement.dataset.density;
+  const next = cur === "compact" ? "comfortable" : "compact";
+  document.documentElement.dataset.density = next;
+  localStorage.setItem("density", next);
+  $("density-icon").textContent = next === "compact" ? "⊞" : "⊟";
+  // Re-render charts to fit new sizes
+  setTimeout(() => {
+    if (allComps.length) {
+      renderEquityChart(allComps);
+      renderUnderwaterChart(allComps);
+      renderFrictionChart(allComps);
+      renderHeroSparkline(allComps);
+      if (_lastState) {
+        renderHealthRadar(_lastState, _lastTrades, allComps);
+        renderWeeklyHist(allComps);
+      }
+    }
+  }, 100);
+  toast(`Density: ${next}`);
+}
+$("density-toggle").addEventListener("click", toggleDensity);
+// Restore saved density
+const savedDensity = localStorage.getItem("density");
+if (savedDensity) {
+  document.documentElement.dataset.density = savedDensity;
+  setTimeout(() => { $("density-icon").textContent = savedDensity === "compact" ? "⊞" : "⊟"; }, 0);
+}
+// Add to cmdk + keyboard shortcut
+COMMANDS.push({
+  section: "View",
+  name: "Toggle density (compact / comfortable)",
+  icon: "⊟",
+  shortcut: "D",
+  fn: toggleDensity,
+});
+// Add D shortcut listener
+document.addEventListener("keydown", e => {
+  if (document.activeElement?.tagName === "INPUT" || document.activeElement?.tagName === "TEXTAREA") return;
+  if ($("cmdk-backdrop").classList.contains("show")) return;
+  if (e.key === "d" || e.key === "D") {
+    if (!e.metaKey && !e.ctrlKey) { e.preventDefault(); toggleDensity(); }
+  }
+});
+
+// =================== CONFIDENCE BAND ON EQUITY ===================
+// Inject ±σ shaded band based on observed daily volatility
+const _origRenderEqWithBand = renderEquityChart;
+renderEquityChart = function(comps) {
+  if (_compareMode) { _origRenderEqWithBand(comps); return; }
+  const ctx = $("equity-chart").getContext("2d");
+  if (charts.equity) charts.equity.destroy();
+  const filtered = filterPeriod(comps, currentPeriod);
+  if (!filtered.length) {
+    ctx.canvas.parentElement.innerHTML = '<div class="empty no-data">no comparison data yet</div>';
+    return;
+  }
+  const t = chartTheme();
+  // Compute rolling 24h std of returns to derive ±σ band
+  const totals = filtered.map(c => c.paper_total);
+  const rets = totals.slice(1).map((v, i) => v / totals[i] - 1);
+  const meanRet = rets.length ? rets.reduce((a, b) => a + b, 0) / rets.length : 0;
+  const variance = rets.length ? rets.reduce((s, r) => s + (r - meanRet) ** 2, 0) / rets.length : 0;
+  const sd = Math.sqrt(variance);
+  // Build ±1σ envelope around expected (linear projection from start)
+  const init = filtered[0].paper_total;
+  const upper = filtered.map((c, i) => init * (1 + meanRet * i + sd * Math.sqrt(i + 1)));
+  const lower = filtered.map((c, i) => init * (1 + meanRet * i - sd * Math.sqrt(i + 1)));
+
+  charts.equity = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels: filtered.map(c => fmt.time(c.ts)),
+      datasets: [
+        {label: "+1σ band", data: upper, borderColor: "transparent",
+         backgroundColor: "rgba(201,100,66,0.06)", fill: "+1", pointRadius: 0, tension: 0.35},
+        {label: "-1σ band", data: lower, borderColor: "transparent",
+         backgroundColor: "rgba(201,100,66,0.06)", fill: false, pointRadius: 0, tension: 0.35},
+        {label: "Paper", data: filtered.map(c => c.paper_total), borderColor: "#c96442",
+         backgroundColor: "rgba(201,100,66,0.10)", fill: false, tension: 0.35, borderWidth: 2.5, pointRadius: 0,
+         pointHoverRadius: 4, pointHoverBackgroundColor: "#c96442"},
+        {label: "Shadow", data: filtered.map(c => c.shadow_total),
+         borderColor: "#5b8c6e", borderWidth: 1.5, tension: 0.35, pointRadius: 0, borderDash: [5, 5]},
+        {label: "Backtest", data: filtered.map(c => c.bt_expected),
+         borderColor: t.muted, borderWidth: 1, tension: 0.35, pointRadius: 0, borderDash: [2, 6]},
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: {mode: "index", intersect: false},
+      plugins: {
+        legend: {position: "bottom", labels: {boxWidth: 8, boxHeight: 8, padding: 14, color: t.muted, font: {size: 11, weight: "500"}, usePointStyle: true, pointStyle: "circle",
+          filter: (item) => !item.text.includes("σ band")}},
+        tooltip: {backgroundColor: t.bg, titleColor: t.text, bodyColor: t.text, borderColor: t.grid, borderWidth: 1, padding: 12, cornerRadius: 8,
+          callbacks: {label: (ctx) => ctx.dataset.label.includes("σ") ? null : `  ${ctx.dataset.label}: ${fmt.usd(ctx.parsed.y)}`}},
+      },
+      scales: {
+        x: {ticks: {color: t.muted, font: {size: 10}, maxTicksLimit: 6, maxRotation: 0}, grid: {display: false}, border: {display: false}},
+        y: {ticks: {color: t.muted, font: {size: 10}, callback: v => "$" + v.toLocaleString()}, grid: {color: t.grid, drawTicks: false}, border: {display: false}},
+      },
+    },
+  });
+};
+
+// =================== BETTER EMPTY STATES ===================
+// Patch existing render functions to use illustrative empty states
+const _origRenderTopList3 = renderTopList;
+renderTopList = function(state) {
+  _origRenderTopList3(state);
+  const sp = state.shadow_pnl || {};
+  const hasData = Object.values(sp).some(i => i.rets && i.rets.length);
+  if (!hasData) setHTML("top-list", '<div class="empty no-shadow">shadow data warming up<br><span style="font-size:10px;color:var(--text-faint);">14d needed for full ranking</span></div>');
+};
+const _origRenderPositions3 = renderPositions;
+renderPositions = function(state) {
+  _origRenderPositions3(state);
+  if (!(state.positions || []).length) setHTML("positions-table", '<div class="empty no-positions">no open positions<br><span style="font-size:10px;color:var(--text-faint);">awaiting funding signals</span></div>');
+};
+const _origRenderTrades3 = renderTrades;
+renderTrades = function(trades) {
+  _origRenderTrades3(trades);
+  const events = trades.filter(t => t.event === "open" || t.event === "close");
+  if (!events.length) setHTML("trades-table", '<div class="empty no-trades">no trades yet<br><span style="font-size:10px;color:var(--text-faint);">first signal could fire any cycle</span></div>');
+};
+
 // =================== AUGMENT loadAll for new sections ===================
 const _origLoad4 = loadAll;
 loadAll = async function(silent) {
