@@ -1,0 +1,43 @@
+{
+  "strategies": [
+    {
+      "id": "v10_alts",
+      "name": "v10 alts funding-rev",
+      "description": "52 Binance perp alts, funding-rev + adaptive top-N",
+      "color": "#c96442",
+      "state_url": "/state/paper_state.json",
+      "expected_cagr_pct": 30,
+      "active": true
+    },
+    {
+      "id": "trader_intel_v18",
+      "name": "trader-intel v18 (Wyckoff BTC/ETH/SOL)",
+      "description": "Pullback + pair momentum on majors",
+      "color": "#5b8c6e",
+      "state_url": "https://raw.githubusercontent.com/williamsuchun/crypto-future-strategy/main/data/paper_trading/paper_state.json",
+      "expected_cagr_pct": 50,
+      "active": false,
+      "note": "Set repo to public + path correct, or push simplified state to this repo"
+    },
+    {
+      "id": "earnings_alpha_v6",
+      "name": "earnings-alpha V6",
+      "description": "Stock earnings drift, long top30 + short bot12",
+      "color": "#6366f1",
+      "state_url": null,
+      "expected_cagr_pct": 118,
+      "active": false,
+      "note": "Local only; needs GitHub-published state to show here"
+    },
+    {
+      "id": "crypto_alpha_lab",
+      "name": "crypto-alpha-lab 5-alpha",
+      "description": "Ensemble of 5 uncorrelated alphas (D/C/O/Q/R)",
+      "color": "#10b981",
+      "state_url": null,
+      "expected_cagr_pct": 24,
+      "active": false,
+      "note": "Local only; needs GitHub-published state"
+    }
+  ]
+}

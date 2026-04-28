@@ -2562,6 +2562,132 @@ function checkTradeEvents(trades) {
   _lastTradeCount = total;
 }
 
+// =================== MULTI-STRATEGY PORTFOLIO ===================
+async function loadStrategiesConfig() {
+  try {
+    const r = await fetch(`${RAW}/state/strategies.json?t=${Date.now()}`, {cache: "no-store"});
+    if (!r.ok) return [];
+    return (await r.json()).strategies || [];
+  } catch { return []; }
+}
+
+async function renderPortfolio() {
+  const strategies = await loadStrategiesConfig();
+  if (!strategies.length) return;
+
+  // Fetch each active strategy's state
+  const fetched = await Promise.all(strategies.map(async s => {
+    if (!s.active || !s.state_url) return {...s, equity: null, roi: null, error: null};
+    try {
+      const url = s.state_url.startsWith("http") ? s.state_url : `${RAW}${s.state_url}`;
+      const r = await fetch(`${url}?t=${Date.now()}`, {cache: "no-store"});
+      if (!r.ok) return {...s, equity: null, error: `HTTP ${r.status}`};
+      const data = await r.json();
+      const init = data.initial_capital || 10000;
+      const cash = data.equity || init;
+      const positions = data.positions || [];
+      const lastPrices = data.last_prices || {};
+      let floating = 0;
+      for (const p of positions) {
+        const cur = lastPrices[p.sym] || p.entry_price || 0;
+        if (p.entry_price) floating += (cur / p.entry_price - 1) * (p.side || 1) * (p.size_usd || 0);
+      }
+      const total = cash + floating;
+      const roi = (total / init - 1) * 100;
+      return {...s, equity: total, init, roi, error: null, lastCheck: data.last_check};
+    } catch (e) {
+      return {...s, equity: null, error: String(e).slice(0, 60)};
+    }
+  }));
+
+  // Aggregate summary
+  const active = fetched.filter(s => s.equity != null);
+  const totalEq = active.reduce((sum, s) => sum + (s.equity || 0), 0);
+  const totalInit = active.reduce((sum, s) => sum + (s.init || 0), 0);
+  const totalRoi = totalInit ? (totalEq / totalInit - 1) * 100 : 0;
+  const avgExpected = strategies.length
+    ? strategies.reduce((s, x) => s + (x.expected_cagr_pct || 0), 0) / strategies.length : 0;
+
+  $("portfolio-summary").innerHTML = `
+    <div class="portfolio-stat">
+      <div class="portfolio-stat-label">Total Portfolio</div>
+      <div class="portfolio-stat-value">${fmt.usd(totalEq)}</div>
+    </div>
+    <div class="portfolio-stat">
+      <div class="portfolio-stat-label">Combined ROI</div>
+      <div class="portfolio-stat-value ${cls(totalRoi)}">${fmt.pct(totalRoi)}</div>
+    </div>
+    <div class="portfolio-stat">
+      <div class="portfolio-stat-label">Active Strategies</div>
+      <div class="portfolio-stat-value">${active.length} / ${strategies.length}</div>
+    </div>
+    <div class="portfolio-stat">
+      <div class="portfolio-stat-label">Expected CAGR (avg)</div>
+      <div class="portfolio-stat-value">${avgExpected.toFixed(0)}%</div>
+    </div>
+  `;
+
+  // Per-strategy list
+  $("portfolio-list").innerHTML = fetched.map(s => {
+    const isPlaceholder = !s.active || s.equity == null;
+    const initials = (s.name.split(" ").slice(0, 2).map(w => w[0]).join("") || s.id.slice(0, 2)).toUpperCase();
+    const roiHtml = s.equity != null
+      ? `<div class="portfolio-item-stat"><span>ROI</span><span class="${cls(s.roi)}">${fmt.pct(s.roi)}</span></div>`
+      : `<div class="portfolio-item-stat"><span>STATUS</span><span class="muted">${s.error || "not configured"}</span></div>`;
+    const eqHtml = s.equity != null
+      ? `<div class="portfolio-item-stat"><span>EQUITY</span><span>${fmt.usd(s.equity)}</span></div>`
+      : `<div class="portfolio-item-stat"><span>EXPECTED</span><span class="muted">${s.expected_cagr_pct || "?"}%/yr</span></div>`;
+    const note = s.note ? `<div class="muted" style="font-size:10px;margin-top:3px;">${s.note}</div>` : "";
+    return `<div class="portfolio-item ${isPlaceholder ? 'placeholder' : ''}" style="--accent:${s.color}">
+      <div class="portfolio-item-icon" style="color:${s.color}">${initials}</div>
+      <div class="portfolio-item-text">
+        <div class="portfolio-item-name">${s.name}</div>
+        <div class="portfolio-item-desc">${s.description}</div>
+        ${note}
+      </div>
+      <div class="portfolio-item-stats">${eqHtml}${roiHtml}</div>
+    </div>`;
+  }).join("");
+
+  // Aggregate equity chart (just sum active strategies' equity over time — simplified, uses v10's comparison_history)
+  // For richer multi-strategy chart we'd need each strategy's history. Skip for now, show note.
+  const ctx = document.getElementById("portfolio-chart").getContext("2d");
+  if (charts.portfolio) charts.portfolio.destroy();
+  if (allComps.length && active.length) {
+    const t = chartTheme();
+    charts.portfolio = new Chart(ctx, {
+      type: "line",
+      data: {
+        labels: allComps.map(c => fmt.time(c.ts)),
+        datasets: active.map(s => ({
+          label: s.name,
+          data: s.id === "v10_alts" ? allComps.map(c => c.paper_total) : null,
+          borderColor: s.color,
+          backgroundColor: s.color + "20",
+          fill: false,
+          tension: 0.35,
+          borderWidth: 2,
+          pointRadius: 0,
+        })).filter(d => d.data),
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: {position: "bottom", labels: {boxWidth: 8, padding: 12, color: t.muted, font: {size: 11}, usePointStyle: true, pointStyle: "circle"}},
+          tooltip: {backgroundColor: t.bg, titleColor: t.text, bodyColor: t.text, borderColor: t.grid, borderWidth: 1, padding: 10, cornerRadius: 8,
+            callbacks: {label: c => `  ${c.dataset.label}: ${fmt.usd(c.parsed.y)}`}},
+        },
+        scales: {
+          x: {ticks: {color: t.muted, font: {size: 10}, maxTicksLimit: 6, maxRotation: 0}, grid: {display: false}, border: {display: false}},
+          y: {ticks: {color: t.muted, font: {size: 10}, callback: v => "$" + v.toLocaleString()}, grid: {color: t.grid}, border: {display: false}},
+        },
+      },
+    });
+  } else {
+    document.getElementById("portfolio-chart-wrap").innerHTML = '<div class="empty">Add more strategies to see comparison chart</div>';
+  }
+}
+
 // =================== AUGMENT loadAll for new sections ===================
 const _origLoad4 = loadAll;
 loadAll = async function(silent) {
@@ -2600,13 +2726,13 @@ loadAll = async function(silent) {
       attachCardDrag();
       attachHelpTooltips();
       buildScrollSpy();
-      // Setup WS for active position symbols
       const syms = (state.positions || []).map(p => p.sym);
       setupWS(syms);
     }, 50);
     checkAchievements(state, trades, comps);
     checkTradeEvents(trades);
-    // Dismiss splash on first successful load
+    // Async load multi-strategy portfolio (don't block main render)
+    renderPortfolio().catch(e => console.warn("portfolio err:", e));
     dismissSplash();
     if (!silent) toast("Refreshed");
   } catch (e) {
