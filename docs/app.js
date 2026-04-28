@@ -1008,3 +1008,333 @@ renderHero = function(state, comps) {
     _heroAnimated = true;
   }
 };
+
+// =================== INSIGHTS ROW ===================
+function renderInsights(state, trades, comps) {
+  const insights = computeInsights(state, trades, comps);
+  if (!insights.length) {
+    $("insights-row").innerHTML = "";
+    return;
+  }
+  $("insights-row").innerHTML = insights.map((ins, i) => `
+    <div class="insight ${ins.type}" style="animation-delay: ${i * 0.05}s">
+      <span class="insight-icon">${ins.icon}</span>
+      <div class="insight-text">
+        <div class="insight-title">${ins.title}</div>
+        <div class="insight-desc">${ins.desc}</div>
+      </div>
+    </div>`).join("");
+}
+
+function computeInsights(state, trades, comps) {
+  const out = [];
+  const init = state.initial_capital || 10000;
+  const positions = state.positions || [];
+  const lastPrices = state.last_prices || {};
+  let floating = 0;
+  for (const p of positions) {
+    const cur = lastPrices[p.sym] || p.entry_price;
+    floating += (cur / p.entry_price - 1) * p.side * p.size_usd;
+  }
+  const total = (state.equity || init) + floating;
+
+  // 1. Performance vs expected
+  if (comps.length > 24) {
+    const days = (Date.now() - new Date(comps[0].ts).getTime()) / 86400000;
+    const expectedRoi = ((1.30 ** (days / 365) - 1) * 100);
+    const actualRoi = (total / init - 1) * 100;
+    const delta = actualRoi - expectedRoi;
+    if (Math.abs(delta) > 3) {
+      out.push({
+        type: delta > 0 ? "gain" : "loss",
+        icon: delta > 0 ? "📈" : "📉",
+        title: `${Math.abs(delta).toFixed(1)}% ${delta > 0 ? "ahead of" : "behind"} expected`,
+        desc: `paper ${actualRoi.toFixed(2)}% vs backtest projection ${expectedRoi.toFixed(2)}%`,
+      });
+    }
+  }
+
+  // 2. Recent winning/losing streak
+  const closes24h = trades.filter(t => t.event === "close" &&
+    (Date.now() - new Date(t.ts).getTime()) < 86400 * 1000).slice(-10);
+  if (closes24h.length >= 3) {
+    const wins = closes24h.filter(c => (c.pnl_usd || 0) > 0).length;
+    const wr = wins / closes24h.length * 100;
+    if (wr >= 70) {
+      out.push({type: "gain", icon: "🔥", title: `Hot streak`, desc: `${wins}/${closes24h.length} winning trades in 24h (${wr.toFixed(0)}% WR)`});
+    } else if (wr <= 25) {
+      out.push({type: "warn", icon: "⚠️", title: `Cold streak`, desc: `only ${wins}/${closes24h.length} winning trades in 24h`});
+    }
+  }
+
+  // 3. Single coin standout
+  const attr = state.pnl_attribution || {};
+  const ranked = Object.entries(attr).sort((a, b) => b[1].total_pnl - a[1].total_pnl);
+  if (ranked.length) {
+    const [topSym, topData] = ranked[0];
+    if (topData.total_pnl > 100) {
+      out.push({type: "gain", icon: "🏆", title: `${topSym} carrying`, desc: `+$${topData.total_pnl.toFixed(0)} across ${topData.n_trades} trades`});
+    }
+    const [worstSym, worstData] = ranked[ranked.length - 1];
+    if (worstData.total_pnl < -100) {
+      out.push({type: "loss", icon: "💀", title: `${worstSym} dragging`, desc: `-$${Math.abs(worstData.total_pnl).toFixed(0)} across ${worstData.n_trades} trades`});
+    }
+  }
+
+  // 4. Workflow health
+  if (state.last_check) {
+    const sinceMin = (Date.now() - new Date(state.last_check).getTime()) / 60000;
+    if (sinceMin > 90) {
+      out.push({type: "warn", icon: "⏰", title: `Cron stale`, desc: `last check ${Math.floor(sinceMin)}m ago — investigate Actions`});
+    }
+  }
+
+  // 5. Net exposure warning
+  if (positions.length >= 5) {
+    const net = positions.reduce((s, p) => s + p.side * p.size_usd, 0);
+    const netPct = Math.abs(net / init * 100);
+    if (netPct > 50) {
+      const dir = net > 0 ? "LONG" : "SHORT";
+      out.push({type: "warn", icon: "⚖️", title: `One-sided book`, desc: `net ${netPct.toFixed(0)}% ${dir} — concentration risk`});
+    }
+  }
+
+  return out.slice(0, 4);  // max 4 insights
+}
+
+// =================== HEATMAP CALENDAR ===================
+function renderHeatmap(comps) {
+  const container = $("heatmap");
+  if (!comps.length) {
+    container.innerHTML = '<div class="empty">no daily data yet</div>';
+    return;
+  }
+  // Bucket comps into daily P&L
+  const dailyPnl = {};
+  let prevTotal = comps[0].paper_total;
+  let prevDay = new Date(comps[0].ts).toISOString().slice(0, 10);
+  for (const c of comps) {
+    const day = new Date(c.ts).toISOString().slice(0, 10);
+    if (day !== prevDay) {
+      dailyPnl[prevDay] = (dailyPnl[prevDay] || 0); // ensure key exists
+      prevDay = day;
+      prevTotal = c.paper_total;
+    }
+    const pnl = (c.paper_total / prevTotal - 1) * 100;
+    dailyPnl[day] = pnl;
+  }
+
+  // 90 days back from today, organize by week (Mon-Sun)
+  const today = new Date(); today.setHours(0,0,0,0);
+  const daysBack = 90;
+  const cells = [];
+  for (let i = daysBack - 1; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    const key = d.toISOString().slice(0, 10);
+    cells.push({date: d, key, pnl: dailyPnl[key], hasData: key in dailyPnl});
+  }
+  // Find max abs pnl for color scaling
+  const maxAbs = Math.max(0.5, ...cells.filter(c => c.hasData).map(c => Math.abs(c.pnl || 0)));
+  const colorClass = (pnl) => {
+    if (pnl == null || pnl === 0) return "";
+    const p = Math.abs(pnl) / maxAbs;
+    const lvl = p > 0.75 ? 4 : p > 0.5 ? 3 : p > 0.25 ? 2 : 1;
+    return (pnl > 0 ? "gain-" : "loss-") + lvl;
+  };
+
+  // Build grid: columns = weeks, rows = days of week
+  // Start each column on Monday
+  const grid = []; // grid[col][row]
+  let col = []; let curWeek = -1;
+  for (const c of cells) {
+    const dow = (c.date.getDay() + 6) % 7; // Mon=0
+    const week = Math.floor((c.date - new Date(c.date.getFullYear(), 0, 1)) / (7*86400000));
+    if (week !== curWeek) {
+      if (col.length) grid.push(col);
+      col = new Array(7).fill(null);
+      curWeek = week;
+    }
+    col[dow] = c;
+  }
+  if (col.length) grid.push(col);
+
+  const cellsHtml = grid.map(week => {
+    const cellsCol = week.map((c, dow) => {
+      if (!c) return `<div class="heatmap-cell empty"></div>`;
+      const cls = c.hasData ? colorClass(c.pnl) : "";
+      const label = c.hasData
+        ? `${c.key}: ${(c.pnl >= 0 ? "+" : "")}${c.pnl.toFixed(2)}%`
+        : `${c.key}: no data`;
+      return `<div class="heatmap-cell ${cls}" title="${label}"></div>`;
+    }).join("");
+    return cellsCol;
+  }).join("");
+
+  container.innerHTML = `<div class="heatmap-grid">${cellsHtml}</div>`;
+}
+
+// =================== ACTIVITY FEED ===================
+function renderActivityFeed(trades) {
+  const events = trades.filter(t => t.event === "open" || t.event === "close").slice(-30).reverse();
+  if (!events.length) {
+    setHTML("activity-feed", '<div class="empty">no events yet</div>');
+    return;
+  }
+  $("activity-feed").innerHTML = events.map(t => {
+    const sideLabel = t.side === 1 ? "LONG" : "SHORT";
+    let iconCls, title, meta;
+    if (t.event === "open") {
+      iconCls = "open";
+      title = `Opened <strong data-sym="${t.sym}">${t.sym}</strong> ${sideLabel}`;
+      meta = `@$${(t.entry_price || 0).toFixed(4)} · ${fmt.shortUsd(t.size_usd)} · funding ${(t.funding * 100 || 0).toFixed(4)}%`;
+    } else {
+      const win = (t.pnl_usd || 0) >= 0;
+      iconCls = win ? "close-gain" : "close-loss";
+      title = `Closed <strong data-sym="${t.sym}">${t.sym}</strong> ${sideLabel} <span class="${win ? 'gain' : 'loss'}">${fmt.usd(t.pnl_usd || 0)}</span>`;
+      meta = `@$${(t.exit_price || 0).toFixed(4)} · ${(t.held_h || 0).toFixed(1)}h · ${t.reason || ""}`;
+    }
+    return `<div class="activity-item">
+      <span class="activity-icon ${iconCls}"></span>
+      <div class="activity-content">
+        <div class="activity-title">${title}</div>
+        <div class="activity-meta">${fmt.ago(t.ts)} · ${meta}</div>
+      </div>
+    </div>`;
+  }).join("");
+}
+
+// =================== HOVER PREVIEW ===================
+let _previewTimer;
+function attachHoverPreviews() {
+  document.querySelectorAll("[data-sym]").forEach(el => {
+    if (el._previewAttached) return;
+    el._previewAttached = true;
+    el.addEventListener("mouseenter", e => {
+      clearTimeout(_previewTimer);
+      _previewTimer = setTimeout(() => showPreview(el.dataset.sym, e), 250);
+    });
+    el.addEventListener("mouseleave", () => {
+      clearTimeout(_previewTimer);
+      hidePreview();
+    });
+    el.addEventListener("mousemove", e => {
+      const pop = $("sym-preview");
+      if (pop && pop.classList.contains("show")) positionPreview(e);
+    });
+  });
+}
+
+function positionPreview(e) {
+  const pop = $("sym-preview");
+  if (!pop) return;
+  const w = 240, h = pop.offsetHeight || 120;
+  let left = e.clientX + 16;
+  let top = e.clientY + 16;
+  if (left + w > window.innerWidth - 16) left = e.clientX - w - 16;
+  if (top + h > window.innerHeight - 16) top = e.clientY - h - 16;
+  pop.style.left = left + "px";
+  pop.style.top = top + "px";
+}
+
+function showPreview(sym, e) {
+  if (!_lastState) return;
+  const attr = (_lastState.pnl_attribution || {})[sym];
+  const sp = (_lastState.shadow_pnl || {})[sym];
+  $("preview-sym").textContent = sym;
+  const trail = sp && sp.rets ? sp.rets.reduce((a,b)=>a+b, 0) * 100 : 0;
+  $("preview-pnl").textContent = sp && sp.rets ? fmt.pct(trail) : "—";
+  $("preview-pnl").className = "mono " + (trail >= 0 ? "gain" : "loss");
+
+  // mini chart of shadow rets cumulative
+  const ctx = $("preview-chart").getContext("2d");
+  if (charts.preview) charts.preview.destroy();
+  if (sp && sp.rets && sp.rets.length > 5) {
+    let cum = 1;
+    const series = sp.rets.map(r => { cum *= (1 + r); return cum; });
+    charts.preview = new Chart(ctx, {
+      type: "line",
+      data: {labels: series.map((_, i) => i), datasets: [{
+        data: series,
+        borderColor: trail >= 0 ? "#5b8c6e" : "#b85450",
+        backgroundColor: trail >= 0 ? "rgba(91,140,110,0.15)" : "rgba(184,84,80,0.15)",
+        fill: true, tension: 0.4, pointRadius: 0, borderWidth: 1.5,
+      }]},
+      options: {
+        responsive: false, maintainAspectRatio: false,
+        plugins: {legend: {display: false}, tooltip: {enabled: false}},
+        scales: {x: {display: false}, y: {display: false}},
+        animation: false,
+      },
+    });
+  }
+  let stats = "";
+  if (attr) stats += `<span>${attr.n_trades} trades</span><span>${attr.wins}W / ${attr.losses}L</span><span>${attr.n_trades ? (attr.wins/attr.n_trades*100).toFixed(0)+"%" : "—"} WR</span>`;
+  $("preview-stats").innerHTML = stats;
+  positionPreview(e);
+  $("sym-preview").classList.add("show");
+  $("sym-preview").setAttribute("aria-hidden", "false");
+}
+function hidePreview() {
+  $("sym-preview").classList.remove("show");
+  $("sym-preview").setAttribute("aria-hidden", "true");
+}
+
+// =================== POSITION LIFECYCLE BAR ===================
+const _origRenderPositions2 = renderPositions;
+renderPositions = function(state) {
+  _origRenderPositions2(state);
+  // Replace "Held" cell with held + lifecycle bar
+  const positions = state.positions || [];
+  const rows = document.querySelectorAll("#positions-table tbody tr");
+  rows.forEach((row, i) => {
+    const p = positions[i];
+    if (!p) return;
+    const heldCell = row.cells[row.cells.length - 1];
+    if (!heldCell) return;
+    const holdMax = 12;  // CFG.hold_hours
+    const heldH = (Date.now() - new Date(p.entry_time).getTime()) / 3600000;
+    const pct = Math.min(100, (heldH / holdMax) * 100);
+    let barCls = "";
+    if (pct > 80) barCls = "warn";
+    if (pct >= 100) barCls = "expired";
+    heldCell.innerHTML = `${heldH.toFixed(1)}h<span class="lifecycle-bar"><span class="lifecycle-fill ${barCls}" style="width:${pct.toFixed(0)}%"></span></span>`;
+  });
+};
+
+// Augment loadAll once more to render new sections + attach previews
+const _origLoad3 = loadAll;
+loadAll = async function(silent) {
+  if (!silent) $("refresh").classList.add("spinning");
+  try {
+    const [state, trades, comps] = await Promise.all([
+      fetchJson("/state/paper_state.json"),
+      fetchJsonl("/state/paper_trades.jsonl"),
+      fetchJsonl("/state/comparison_history.jsonl"),
+    ]);
+    _lastState = state; _lastTrades = trades;
+    allComps = comps;
+    renderHero(state, comps);
+    renderInsights(state, trades, comps);
+    renderTopList(state);
+    renderPositions(state);
+    renderTrades(trades);
+    renderStats(trades, comps);
+    renderAttribution(state);
+    renderActivityFeed(trades);
+    renderHeatmap(comps);
+    renderEquityChart(comps);
+    renderUnderwaterChart(comps);
+    renderFrictionChart(comps);
+    const lastTs = state.last_check || (comps.length ? comps[comps.length-1].ts : null);
+    $("last-updated").innerHTML = `<span id="status-dot" class="status-dot healthy"></span>Updated ${fmt.ago(lastTs)}`;
+    setTimeout(() => { attachSymClicks(); attachHoverPreviews(); }, 50);
+    if (!silent) toast("Refreshed");
+  } catch (e) {
+    console.error(e);
+    $("last-updated").innerHTML = `<span class="status-dot error"></span>Error loading`;
+    if (!silent) toast("Error loading data");
+  } finally {
+    $("refresh").classList.remove("spinning");
+  }
+};

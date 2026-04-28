@@ -18,6 +18,9 @@
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 
 <link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body>
@@ -110,6 +113,9 @@
     </div>
   </section>
 
+  <!-- Insights row -->
+  <section id="insights-row" class="insights-row" aria-label="Smart insights"></section>
+
   <main class="grid">
     <section class="card span-2">
       <div class="card-header">
@@ -200,7 +206,42 @@
       </div>
       <div id="attribution-table"></div>
     </section>
+
+    <section class="card span-2">
+      <div class="card-header">
+        <div class="card-header-text">
+          <h2>Daily P&amp;L Heatmap</h2>
+          <p class="card-sub">last 90 days · darker = larger move</p>
+        </div>
+        <div class="legend">
+          <span class="legend-item"><span class="legend-cell loss"></span> loss</span>
+          <span class="legend-item"><span class="legend-cell flat"></span> flat</span>
+          <span class="legend-item"><span class="legend-cell gain"></span> gain</span>
+        </div>
+      </div>
+      <div id="heatmap"></div>
+    </section>
+
+    <section class="card">
+      <div class="card-header">
+        <div class="card-header-text">
+          <h2>Activity Feed</h2>
+          <p class="card-sub">recent events</p>
+        </div>
+      </div>
+      <div id="activity-feed" class="activity-feed"></div>
+    </section>
   </main>
+
+  <!-- Hover preview popover (sym mini-card) -->
+  <div id="sym-preview" class="sym-preview" aria-hidden="true">
+    <div class="sym-preview-header">
+      <strong id="preview-sym">—</strong>
+      <span id="preview-pnl" class="mono"></span>
+    </div>
+    <canvas id="preview-chart" width="220" height="60"></canvas>
+    <div id="preview-stats" class="preview-stats"></div>
+  </div>
 
   <footer>
     <span class="muted">data: <a href="https://github.com/williamsuchun/v10-alts-paper" target="_blank" rel="noopener">github.com/williamsuchun/v10-alts-paper</a></span>

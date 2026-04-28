@@ -25,9 +25,9 @@
   --radius-sm: 8px;
   --radius: 12px;
   --radius-lg: 16px;
-  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Helvetica Neue", system-ui, sans-serif;
-  --font-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", system-ui, sans-serif;
-  --mono: ui-monospace, "SF Mono", "Menlo", "Cascadia Mono", "JetBrains Mono", monospace;
+  --font: "Geist", -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", system-ui, sans-serif;
+  --font-display: "Geist", -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", system-ui, sans-serif;
+  --mono: "Geist Mono", ui-monospace, "SF Mono", "Menlo", monospace;
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -1023,3 +1023,312 @@ html[data-theme="light"] .sticky-header { background: rgba(251, 250, 247, 0.85);
 
 /* Filter highlight on no match */
 .no-match-row td { opacity: 0.3; }
+
+/* ========== Subtle grain texture (Vercel-style warmth) ========== */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.04 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 1;
+  opacity: 0.5;
+  mix-blend-mode: multiply;
+}
+.app { position: relative; z-index: 2; }
+@media (prefers-color-scheme: dark) {
+  body::before { mix-blend-mode: screen; opacity: 0.3; }
+}
+
+/* ========== Insights row ========== */
+.insights-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+  min-height: 0;
+}
+.insight {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  box-shadow: var(--shadow);
+  transition: transform 0.2s var(--ease), box-shadow 0.2s var(--ease);
+  position: relative;
+  overflow: hidden;
+  animation: fadeUp 0.6s var(--ease-out) backwards;
+}
+.insight:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-lg);
+}
+.insight::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--accent);
+}
+.insight.gain::before { background: var(--gain); }
+.insight.loss::before { background: var(--loss); }
+.insight.warn::before { background: #d9a64a; }
+.insight-icon {
+  font-size: 22px;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.insight-text {
+  flex: 1;
+  min-width: 0;
+}
+.insight-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 2px;
+}
+.insight-desc {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+/* ========== Heatmap calendar (GitHub style) ========== */
+#heatmap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 4px 0;
+}
+.heatmap-grid {
+  display: grid;
+  grid-auto-flow: column;
+  grid-template-rows: repeat(7, 1fr);
+  gap: 3px;
+  min-height: 110px;
+}
+.heatmap-cell {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  background: var(--bg-subtle);
+  cursor: default;
+  position: relative;
+  transition: transform 0.15s var(--ease);
+}
+.heatmap-cell:hover {
+  transform: scale(1.4);
+  z-index: 5;
+  outline: 2px solid var(--text);
+  outline-offset: 1px;
+}
+.heatmap-cell.empty { background: transparent; }
+/* color scales */
+.heatmap-cell.gain-1 { background: #c8dcc8; }
+.heatmap-cell.gain-2 { background: #95c2a3; }
+.heatmap-cell.gain-3 { background: #5b8c6e; }
+.heatmap-cell.gain-4 { background: #3d6b50; }
+.heatmap-cell.loss-1 { background: #f0d8d6; }
+.heatmap-cell.loss-2 { background: #d99b96; }
+.heatmap-cell.loss-3 { background: #b85450; }
+.heatmap-cell.loss-4 { background: #913934; }
+.heatmap-month-labels {
+  display: flex;
+  font-size: 10px;
+  color: var(--text-muted);
+  font-family: var(--mono);
+  margin-bottom: 4px;
+  gap: 60px;
+  padding-left: 30px;
+}
+.heatmap-day-labels {
+  display: flex;
+  flex-direction: column;
+  font-size: 9px;
+  color: var(--text-faint);
+  font-family: var(--mono);
+  gap: 6px;
+  position: absolute;
+  left: 0;
+}
+.heatmap-row {
+  display: flex;
+  gap: 3px;
+  padding-left: 24px;
+  position: relative;
+}
+.legend {
+  display: flex;
+  gap: 14px;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.legend-cell {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+.legend-cell.gain { background: #5b8c6e; }
+.legend-cell.flat { background: var(--bg-subtle); border: 1px solid var(--border); }
+.legend-cell.loss { background: #b85450; }
+
+/* ========== Activity feed ========== */
+.activity-feed {
+  display: flex;
+  flex-direction: column;
+  max-height: 360px;
+  overflow-y: auto;
+  margin: -4px -4px 0;
+  padding: 4px;
+}
+.activity-item {
+  display: flex;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 12px;
+  position: relative;
+  transition: background 0.15s var(--ease);
+}
+.activity-item:hover { background: var(--bg-hover); }
+.activity-item::before {
+  content: "";
+  position: absolute;
+  left: 19px;
+  top: 32px;
+  bottom: -10px;
+  width: 1px;
+  background: var(--border);
+}
+.activity-item:last-child::before { display: none; }
+.activity-icon {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  margin-top: 4px;
+  margin-left: 5px;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+  border: 3px solid var(--bg-card);
+  outline: 1px solid var(--border);
+}
+.activity-icon.open { background: var(--accent); }
+.activity-icon.close-gain { background: var(--gain); }
+.activity-icon.close-loss { background: var(--loss); }
+.activity-content {
+  flex: 1;
+  min-width: 0;
+}
+.activity-title {
+  color: var(--text);
+  font-weight: 500;
+}
+.activity-meta {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 2px;
+  font-family: var(--mono);
+}
+
+/* ========== Hover preview popover ========== */
+.sym-preview {
+  position: fixed;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+  z-index: 100;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 0.15s var(--ease), transform 0.15s var(--ease);
+  width: 240px;
+}
+.sym-preview.show {
+  opacity: 1;
+  transform: translateY(0);
+}
+.sym-preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 8px;
+}
+.sym-preview-header strong {
+  font-size: 14px;
+  font-weight: 600;
+}
+.sym-preview-header .mono {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+.preview-stats {
+  display: flex;
+  gap: 12px;
+  margin-top: 6px;
+  font-size: 10px;
+  color: var(--text-muted);
+  font-family: var(--mono);
+}
+.preview-stats span { white-space: nowrap; }
+
+/* ========== Position lifecycle bar ========== */
+.lifecycle-bar {
+  display: inline-block;
+  width: 50px;
+  height: 4px;
+  background: var(--bg-subtle);
+  border-radius: 2px;
+  overflow: hidden;
+  vertical-align: middle;
+  margin-left: 6px;
+  position: relative;
+}
+.lifecycle-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+  transition: width 0.3s var(--ease);
+}
+.lifecycle-fill.warn { background: #d9a64a; }
+.lifecycle-fill.expired { background: var(--loss); }
+
+/* ========== Better empty states ========== */
+.empty-illus {
+  padding: 36px 0;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+.empty-illus svg {
+  width: 48px;
+  height: 48px;
+  opacity: 0.4;
+  margin: 0 auto 10px;
+  display: block;
+}
+
+/* Mobile heatmap — smaller cells */
+@media (max-width: 700px) {
+  .heatmap-cell { width: 10px; height: 10px; }
+}
