@@ -2,7 +2,7 @@ name: v10 alts paper trader (hourly)
 
 on:
   schedule:
-    - cron: '0 * * * *'        # hourly (GitHub Actions 通常延迟 0-15 min)
+    - cron: '*/30 * * * *'     # every 30 min (GH Actions often delays/skips, 2x frequency for better data)
   workflow_dispatch: {}
 
 permissions:
