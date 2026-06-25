@@ -2063,7 +2063,7 @@
     },
     "APEUSDT": {
       "pos": 1,
-      "bars_held": 642,
+      "bars_held": 643,
       "entry": 0.1445,
       "rets": [
         0.0,
@@ -6522,7 +6522,7 @@
     },
     "FETUSDT": {
       "pos": 1,
-      "bars_held": 643,
+      "bars_held": 644,
       "entry": 0.2055,
       "rets": [
         0.0,
@@ -7551,7 +7551,7 @@
     },
     "HIGHUSDT": {
       "pos": 1,
-      "bars_held": 643,
+      "bars_held": 644,
       "entry": 0.2221,
       "rets": [
         0.0,
@@ -15440,7 +15440,7 @@
     },
     "TRUMPUSDT": {
       "pos": 1,
-      "bars_held": 643,
+      "bars_held": 644,
       "entry": 2.516,
       "rets": [
         0.0,
@@ -16469,7 +16469,7 @@
     },
     "WLDUSDT": {
       "pos": 1,
-      "bars_held": 643,
+      "bars_held": 644,
       "entry": 0.2533,
       "rets": [
         0.0,
@@ -17895,7 +17895,7 @@
     "GALAUSDT": 0.0001,
     "CRVUSDT": 1.734e-05
   },
-  "last_check": "2026-06-24T23:58:33.095616+00:00",
+  "last_check": "2026-06-25T02:35:23.781361+00:00",
   "history": {
     "equity_curve": [
       {
@@ -22559,6 +22559,13 @@
         "floating": 0,
         "total": 9854.423297642934,
         "n_positions": 0
+      },
+      {
+        "ts": "2026-06-25T02:35:23.781361+00:00",
+        "equity": 9854.423297642934,
+        "floating": 0,
+        "total": 9854.423297642934,
+        "n_positions": 0
       }
     ]
   },
@@ -26210,5 +26217,5 @@
     "vol_ann": 0.34768042326057635
   },
   "current_lev": 3.5,
-  "last_daily_summary": "2026-06-24"
+  "last_daily_summary": "2026-06-25"
 }
