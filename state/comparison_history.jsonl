@@ -938,3 +938,4 @@
 {"ts": "2026-07-17T19:05:06.382776+00:00", "days_elapsed": 81.452, "paper_total": 9854.42, "shadow_total": 10011.78, "bt_expected": 12042.64, "friction_pct": 1.57, "backtest_gap_pct": 18.17, "n_positions": 0, "shadow_top_n": 10}
 {"ts": "2026-07-17T20:27:32.138509+00:00", "days_elapsed": 81.509, "paper_total": 9854.42, "shadow_total": 10011.78, "bt_expected": 12044.21, "friction_pct": 1.57, "backtest_gap_pct": 18.18, "n_positions": 0, "shadow_top_n": 10}
 {"ts": "2026-07-17T21:14:26.611738+00:00", "days_elapsed": 81.542, "paper_total": 9854.42, "shadow_total": 10011.78, "bt_expected": 12045.11, "friction_pct": 1.57, "backtest_gap_pct": 18.19, "n_positions": 0, "shadow_top_n": 10}
+{"ts": "2026-07-17T22:12:41.213373+00:00", "days_elapsed": 81.582, "paper_total": 9854.42, "shadow_total": 10011.78, "bt_expected": 12046.22, "friction_pct": 1.57, "backtest_gap_pct": 18.19, "n_positions": 0, "shadow_top_n": 10}
