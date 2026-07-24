@@ -6522,7 +6522,7 @@
     },
     "FETUSDT": {
       "pos": 1,
-      "bars_held": 1,
+      "bars_held": 2,
       "entry": 0.1521,
       "rets": [
         0.0,
@@ -7551,7 +7551,7 @@
     },
     "HIGHUSDT": {
       "pos": 1,
-      "bars_held": 1026,
+      "bars_held": 1027,
       "entry": 0.2221,
       "rets": [
         0.0,
@@ -16469,7 +16469,7 @@
     },
     "WLDUSDT": {
       "pos": 1,
-      "bars_held": 1,
+      "bars_held": 2,
       "entry": 0.3511,
       "rets": [
         0.0,
@@ -17840,59 +17840,7 @@
       ]
     }
   },
-  "last_prices": {
-    "DOGEUSDT": 0.06927,
-    "XRPUSDT": 1.0918,
-    "ADAUSDT": 0.1638,
-    "BNBUSDT": 565.36,
-    "AVAXUSDT": 6.268,
-    "AAVEUSDT": 92.97,
-    "LINKUSDT": 8.327,
-    "DOTUSDT": 0.8044,
-    "FILUSDT": 0.7167,
-    "LTCUSDT": 46.23,
-    "BCHUSDT": 209.96,
-    "NEARUSDT": 1.812,
-    "XMRUSDT": 364.2,
-    "ZECUSDT": 488.93,
-    "MASKUSDT": 0.3778,
-    "AXSUSDT": 0.885,
-    "APEUSDT": 0.1435,
-    "LDOUSDT": 0.3757,
-    "SUIUSDT": 0.7117,
-    "INJUSDT": 5.177,
-    "ORDIUSDT": 3.535,
-    "TAOUSDT": 190.69,
-    "1000PEPEUSDT": 0.0027151,
-    "ENAUSDT": 0.0873,
-    "1000LUNCUSDT": 0.05333,
-    "FARTCOINUSDT": 0.1243,
-    "TRUMPUSDT": 1.563,
-    "HYPEUSDT": 57.212,
-    "PENGUUSDT": 0.006017,
-    "WIFUSDT": 0.1429,
-    "1000BONKUSDT": 0.002935,
-    "1000SHIBUSDT": 0.004176,
-    "POPCATUSDT": 0.04199,
-    "SPXUSDT": 0.331,
-    "TURBOUSDT": 0.0007758,
-    "MOODENGUSDT": 0.03623,
-    "PNUTUSDT": 0.0403,
-    "NEIROUSDT": 5.727e-05,
-    "WLDUSDT": 0.3511,
-    "JUPUSDT": 0.1865,
-    "PYTHUSDT": 0.04428,
-    "TIAUSDT": 0.3379,
-    "JTOUSDT": 0.6015,
-    "FETUSDT": 0.1521,
-    "RUNEUSDT": 0.4198,
-    "ATOMUSDT": 1.39,
-    "ARBUSDT": 0.0832,
-    "OPUSDT": 0.0923,
-    "CHZUSDT": 0.01414,
-    "GALAUSDT": 0.001975,
-    "CRVUSDT": 0.2029
-  },
+  "last_prices": {},
   "last_funding": {
     "DOGEUSDT": -3.214e-05,
     "XRPUSDT": -4.053e-05,
@@ -17947,7 +17895,7 @@
     "GALAUSDT": 3.451e-05,
     "CRVUSDT": -6.165e-05
   },
-  "last_check": "2026-07-24T22:51:24.345092+00:00",
+  "last_check": "2026-07-24T23:55:31.449237+00:00",
   "history": {
     "equity_curve": [
       {
@@ -25288,6 +25236,13 @@
       },
       {
         "ts": "2026-07-24T22:51:24.345092+00:00",
+        "equity": 9854.423297642934,
+        "floating": 0,
+        "total": 9854.423297642934,
+        "n_positions": 0
+      },
+      {
+        "ts": "2026-07-24T23:55:31.449237+00:00",
         "equity": 9854.423297642934,
         "floating": 0,
         "total": 9854.423297642934,
