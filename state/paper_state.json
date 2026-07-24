@@ -4464,7 +4464,7 @@
     },
     "CHZUSDT": {
       "pos": 1,
-      "bars_held": 61,
+      "bars_held": 62,
       "entry": 0.01511,
       "rets": [
         0.0,
@@ -7551,7 +7551,7 @@
     },
     "HIGHUSDT": {
       "pos": 1,
-      "bars_held": 1014,
+      "bars_held": 1015,
       "entry": 0.2221,
       "rets": [
         0.0,
@@ -16812,7 +16812,7 @@
     },
     "XMRUSDT": {
       "pos": -1,
-      "bars_held": 61,
+      "bars_held": 62,
       "entry": 333.87,
       "rets": [
         0.0,
@@ -17895,7 +17895,7 @@
     "GALAUSDT": 5.94e-05,
     "CRVUSDT": 0.0001
   },
-  "last_check": "2026-07-23T23:49:57.433267+00:00",
+  "last_check": "2026-07-24T01:28:46.818280+00:00",
   "history": {
     "equity_curve": [
       {
@@ -25156,6 +25156,13 @@
         "floating": 0,
         "total": 9854.423297642934,
         "n_positions": 0
+      },
+      {
+        "ts": "2026-07-24T01:28:46.818280+00:00",
+        "equity": 9854.423297642934,
+        "floating": 0,
+        "total": 9854.423297642934,
+        "n_positions": 0
       }
     ]
   },
@@ -30627,5 +30634,5 @@
     "vol_ann": 0.3424829900689242
   },
   "current_lev": 3.5,
-  "last_daily_summary": "2026-07-23"
+  "last_daily_summary": "2026-07-24"
 }
