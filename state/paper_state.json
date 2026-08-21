@@ -7551,7 +7551,7 @@
     },
     "HIGHUSDT": {
       "pos": 1,
-      "bars_held": 1617,
+      "bars_held": 1618,
       "entry": 0.2221,
       "rets": [
         0.0,
@@ -17840,59 +17840,7 @@
       ]
     }
   },
-  "last_prices": {
-    "DOGEUSDT": 0.08315,
-    "XRPUSDT": 1.3024,
-    "ADAUSDT": 0.2081,
-    "BNBUSDT": 664.45,
-    "AVAXUSDT": 7.394,
-    "AAVEUSDT": 100.21,
-    "LINKUSDT": 10.951,
-    "DOTUSDT": 0.8475,
-    "FILUSDT": 0.7536,
-    "LTCUSDT": 48.52,
-    "BCHUSDT": 247.04,
-    "NEARUSDT": 1.816,
-    "XMRUSDT": 416.09,
-    "ZECUSDT": 598.28,
-    "MASKUSDT": 0.4026,
-    "AXSUSDT": 0.9741,
-    "APEUSDT": 0.1327,
-    "LDOUSDT": 0.3417,
-    "SUIUSDT": 0.77,
-    "INJUSDT": 4.799,
-    "ORDIUSDT": 4.238,
-    "TAOUSDT": 218.89,
-    "1000PEPEUSDT": 0.0034117,
-    "ENAUSDT": 0.12981,
-    "1000LUNCUSDT": 0.05444,
-    "FARTCOINUSDT": 0.1706,
-    "TRUMPUSDT": 1.694,
-    "HYPEUSDT": 72.938,
-    "PENGUUSDT": 0.007425,
-    "WIFUSDT": 0.1688,
-    "1000BONKUSDT": 0.002732,
-    "1000SHIBUSDT": 0.005054,
-    "POPCATUSDT": 0.0476,
-    "SPXUSDT": 0.4223,
-    "TURBOUSDT": 0.0009608,
-    "MOODENGUSDT": 0.04612,
-    "PNUTUSDT": 0.05278,
-    "NEIROUSDT": 0.0001028,
-    "WLDUSDT": 0.3724,
-    "JUPUSDT": 0.1938,
-    "PYTHUSDT": 0.04761,
-    "TIAUSDT": 0.3475,
-    "JTOUSDT": 0.5774,
-    "FETUSDT": 0.148,
-    "RUNEUSDT": 0.4532,
-    "ATOMUSDT": 1.537,
-    "ARBUSDT": 0.09222,
-    "OPUSDT": 0.09819,
-    "CHZUSDT": 0.01337,
-    "GALAUSDT": 0.001668,
-    "CRVUSDT": 0.3117
-  },
+  "last_prices": {},
   "last_funding": {
     "DOGEUSDT": 0.0001,
     "XRPUSDT": 0.0001,
@@ -17947,7 +17895,7 @@
     "GALAUSDT": 0.0001,
     "CRVUSDT": 1.209e-05
   },
-  "last_check": "2026-08-21T06:24:20.883424+00:00",
+  "last_check": "2026-08-21T07:16:35.711883+00:00",
   "history": {
     "equity_curve": [
       {
@@ -29425,6 +29373,13 @@
       },
       {
         "ts": "2026-08-21T06:24:20.883424+00:00",
+        "equity": 9854.423297642934,
+        "floating": 0,
+        "total": 9854.423297642934,
+        "n_positions": 0
+      },
+      {
+        "ts": "2026-08-21T07:16:35.711883+00:00",
         "equity": 9854.423297642934,
         "floating": 0,
         "total": 9854.423297642934,
