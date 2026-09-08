@@ -7551,7 +7551,7 @@
     },
     "HIGHUSDT": {
       "pos": 1,
-      "bars_held": 1886,
+      "bars_held": 1887,
       "entry": 0.2221,
       "rets": [
         0.0,
@@ -16812,7 +16812,7 @@
     },
     "XMRUSDT": {
       "pos": -1,
-      "bars_held": 39,
+      "bars_held": 40,
       "entry": 497.63,
       "rets": [
         0.0,
@@ -17895,7 +17895,7 @@
     "GALAUSDT": 0.0001,
     "CRVUSDT": 0.0001
   },
-  "last_check": "2026-09-07T23:39:03.694501+00:00",
+  "last_check": "2026-09-08T01:51:03.391423+00:00",
   "history": {
     "equity_curve": [
       {
@@ -31260,6 +31260,13 @@
         "floating": 0,
         "total": 9854.423297642934,
         "n_positions": 0
+      },
+      {
+        "ts": "2026-09-08T01:51:03.391423+00:00",
+        "equity": 9854.423297642934,
+        "floating": 0,
+        "total": 9854.423297642934,
+        "n_positions": 0
       }
     ]
   },
@@ -40735,5 +40742,5 @@
     "vol_ann": 0.4583547602003274
   },
   "current_lev": 3.2811696492487723,
-  "last_daily_summary": "2026-09-07"
+  "last_daily_summary": "2026-09-08"
 }
